@@ -490,6 +490,34 @@ assert(svgMultiLineFallback.includes('SN: 998877'), 'Fallback harus memuat baris
 assert(svgMultiLineFallback.includes('Keterangan: Asli'), 'Fallback harus memuat baris 4');
 console.log('✅ Preservasi Detail Label (6 baris & multiline) LULUS.');
 
-console.log('\n🎉 SEMUA 27 PENGUJIAN VERIFIKASI BERHASIL 100%!');
+// Test 28: Proportional Resolution Scaling (Preview vs 300 DPI Export)
+console.log('28. Menguji Skalabilitas Proporsional Resolusi (Pratinjau vs Ekspor 300 DPI)...');
+const previewSvg = BarcodeEngine.renderQRCodeToSVG('TEST-ORD-123456789', {
+  topLabel: 'Harta - 0.5 gr',
+  targetWidth: 300,
+  targetHeight: 108,
+  labelWidthMm: 50,
+  labelHeightMm: 18,
+  fontSizeTitle: 12,
+  fontSizeDetails: 10,
+  fontSizeId: 11
+});
+const exportSvg = BarcodeEngine.renderQRCodeToSVG('TEST-ORD-123456789', {
+  topLabel: 'Harta - 0.5 gr',
+  targetWidth: 591,
+  targetHeight: 213,
+  labelWidthMm: 50,
+  labelHeightMm: 18,
+  fontSizeTitle: 12,
+  fontSizeDetails: 10,
+  fontSizeId: 11
+});
+// Verify font sizes scaled proportionally with height (213 / 108 ≈ 1.97)
+assert(previewSvg.includes('font-size="12"'), 'Preview font-size title harus 12px');
+assert(exportSvg.includes('font-size="24"'), '300 DPI font-size title harus diskalakan ~24px');
+console.log('✅ Skalabilitas Proporsional Resolusi (Pratinjau vs Ekspor 300 DPI) LULUS.');
+
+console.log('\n🎉 SEMUA 28 PENGUJIAN VERIFIKASI BERHASIL 100%!');
+
 
 

@@ -77,54 +77,60 @@
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, labelW, labelH);
 
-    // Garis batas stiker tipis
-    ctx.strokeStyle = '#cbd5e1';
-    ctx.lineWidth = 1.5;
-    ctx.setLineDash([6, 4]);
-    ctx.strokeRect(0, 0, labelW, labelH);
-    ctx.setLineDash([]);
-
     const engine = (typeof window !== 'undefined' && window.BarcodeEngine) || (typeof root !== 'undefined' && root && root.BarcodeEngine);
     if (engine) {
-      const tempCanvas = document.createElement('canvas');
       const itemFormat = itemObj.format || barcodeRenderOptions.format || 'CODE128';
       const isQR = itemFormat === 'QR' || itemFormat === 'QRCODE';
 
-      engine.renderToCanvas(tempCanvas, id, {
-        ...barcodeRenderOptions,
-        format: itemFormat,
-        topLabel: itemObj.label || barcodeRenderOptions.topLabel || '',
-        labelLines: itemObj.labelLines || barcodeRenderOptions.labelLines || null,
-        brand: itemObj.brand || barcodeRenderOptions.brand || '',
-        gramasi: itemObj.gramasi || barcodeRenderOptions.gramasi || '',
-        vault: itemObj.vault || barcodeRenderOptions.vault || '',
-        lemari: itemObj.lemari || barcodeRenderOptions.lemari || '',
-        laci: itemObj.laci || barcodeRenderOptions.laci || '',
-        kotak: itemObj.kotak || barcodeRenderOptions.kotak || '',
-        extraRows: itemObj.extraRows || barcodeRenderOptions.extraRows || [],
-        targetWidth: isQR ? labelW : 0,
-        targetHeight: isQR ? labelH : 0,
-        barWidth: barcodeRenderOptions.barWidth || 2,
-        height: barcodeRenderOptions.height || 60,
-        margin: barcodeRenderOptions.margin || 8,
-        fontSize: barcodeRenderOptions.fontSize || 14,
-        fontSizeTitle: barcodeRenderOptions.fontSizeTitle || 12,
-        fontSizeDetails: barcodeRenderOptions.fontSizeDetails || 10,
-        fontSizeId: barcodeRenderOptions.fontSizeId || 11,
-        lineColor: '#000000',
-        backgroundColor: '#ffffff'
-      });
-
-      if (isQR && tempCanvas.width === labelW && tempCanvas.height === labelH) {
-        ctx.imageSmoothingEnabled = false;
-        ctx.drawImage(tempCanvas, 0, 0);
+      if (isQR) {
+        engine.renderToCanvas(stickerCanvas, id, {
+          ...barcodeRenderOptions,
+          ...itemObj,
+          format: itemFormat,
+          labelWidthMm: labelWidthMm,
+          labelHeightMm: labelHeightMm,
+          topLabel: itemObj.label || barcodeRenderOptions.topLabel || '',
+          labelLines: itemObj.labelLines || barcodeRenderOptions.labelLines || null,
+          brand: itemObj.brand || barcodeRenderOptions.brand || '',
+          gramasi: itemObj.gramasi || barcodeRenderOptions.gramasi || '',
+          vault: itemObj.vault || barcodeRenderOptions.vault || '',
+          lemari: itemObj.lemari || barcodeRenderOptions.lemari || '',
+          laci: itemObj.laci || barcodeRenderOptions.laci || '',
+          kotak: itemObj.kotak || barcodeRenderOptions.kotak || '',
+          extraRows: itemObj.extraRows || barcodeRenderOptions.extraRows || [],
+          targetWidth: labelW,
+          targetHeight: labelH,
+          margin: barcodeRenderOptions.margin || 8,
+          fontSizeTitle: barcodeRenderOptions.fontSizeTitle || 12,
+          fontSizeDetails: barcodeRenderOptions.fontSizeDetails || 10,
+          fontSizeId: barcodeRenderOptions.fontSizeId || 11,
+          lineColor: '#000000',
+          backgroundColor: '#ffffff'
+        });
       } else {
-        const padX = mmToPx(1.5);
-        const padY = mmToPx(1.0);
-        const maxW = labelW - (padX * 2);
-        const maxH = labelH - (padY * 2);
+        const tempCanvas = document.createElement('canvas');
+        engine.renderToCanvas(tempCanvas, id, {
+          ...barcodeRenderOptions,
+          ...itemObj,
+          format: itemFormat,
+          topLabel: itemObj.label || barcodeRenderOptions.topLabel || '',
+          labelLines: itemObj.labelLines || barcodeRenderOptions.labelLines || null,
+          brand: itemObj.brand || barcodeRenderOptions.brand || '',
+          gramasi: itemObj.gramasi || barcodeRenderOptions.gramasi || '',
+          vault: itemObj.vault || barcodeRenderOptions.vault || '',
+          lemari: itemObj.lemari || barcodeRenderOptions.lemari || '',
+          laci: itemObj.laci || barcodeRenderOptions.laci || '',
+          kotak: itemObj.kotak || barcodeRenderOptions.kotak || '',
+          extraRows: itemObj.extraRows || barcodeRenderOptions.extraRows || [],
+          barWidth: Math.max(2, Math.round((barcodeRenderOptions.barWidth || 2) * (labelH / 108))),
+          height: Math.max(40, Math.round((barcodeRenderOptions.height || 60) * (labelH / 108))),
+          margin: Math.round((barcodeRenderOptions.margin || 8) * (labelH / 108)),
+          fontSize: Math.round((barcodeRenderOptions.fontSize || 14) * (labelH / 108)),
+          lineColor: '#000000',
+          backgroundColor: '#ffffff'
+        });
 
-        const scale = Math.min(1.0, maxW / tempCanvas.width, maxH / tempCanvas.height);
+        const scale = Math.min(1.0, labelW / tempCanvas.width, labelH / tempCanvas.height);
         const drawW = Math.round(tempCanvas.width * scale);
         const drawH = Math.round(tempCanvas.height * scale);
         const drawX = Math.round((labelW - drawW) / 2);

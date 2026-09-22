@@ -302,6 +302,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnExportCsv = document.getElementById('btn-export-csv');
   const btnQuickDownloadSheet = document.getElementById('btn-quick-download-sheet');
   const btnOpenPrintModal = document.getElementById('btn-open-print-modal');
+  const btnTestRenderPreview = document.getElementById('btn-test-render-preview');
+  const btnApplySettingsToFolder = document.getElementById('btn-apply-settings-to-folder');
+  const btnFolderRefreshDesign = document.getElementById('btn-folder-refresh-design');
 
   // Results & Grid Elements
   const barcodeGrid = document.getElementById('barcode-grid');
@@ -599,12 +602,12 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- SLIDERS BARCODE SYNC ---
   barWidthSlider.addEventListener('input', (e) => {
     barWidthVal.textContent = e.target.value;
-    updateLiveBarcodeStyles();
+    updateLiveDesignPreview();
   });
 
   barHeightSlider.addEventListener('input', (e) => {
     barHeightVal.textContent = e.target.value;
-    updateLiveBarcodeStyles();
+    updateLiveDesignPreview();
   });
 
   // --- MODE PREVIEW TEXT UPDATES ---
@@ -1383,7 +1386,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     updatePrintSheetSelector();
-    renderAllViews();
+    updateLiveDesignPreview();
   }
 
   if (presetTemplateSelect) {
@@ -1422,7 +1425,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (templateLabelDimTag) templateLabelDimTag.textContent = `${lw} × ${lh} mm`;
         if (templateSummaryText) templateSummaryText.textContent = `Kustom • ${c} Kolom × ${r} Baris (${c * r} Label)`;
         updatePrintSheetSelector();
-        renderAllViews();
+        updateLiveDesignPreview();
       });
     }
   });
@@ -1451,7 +1454,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const dimGroup = document.getElementById('dimensions-control-group');
       if (dimGroup) dimGroup.classList.remove('hidden');
     }
-    renderAllViews();
+    updateLiveDesignPreview();
   }
 
   if (btnTypeBarcode) btnTypeBarcode.addEventListener('click', () => setCodeType('CODE128'));
@@ -1460,28 +1463,28 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- LAYOUT & TYPOGRAPHY LISTENERS ---
   if (layoutPositionSelect) {
     layoutPositionSelect.addEventListener('change', () => {
-      renderAllViews();
+      updateLiveDesignPreview();
     });
   }
 
   if (fontSizeTitleSlider) {
     fontSizeTitleSlider.addEventListener('input', (e) => {
       if (fontSizeTitleVal) fontSizeTitleVal.textContent = `${e.target.value} pt`;
-      renderAllViews();
+      updateLiveDesignPreview();
     });
   }
 
   if (fontSizeDetailsSlider) {
     fontSizeDetailsSlider.addEventListener('input', (e) => {
       if (fontSizeDetailsVal) fontSizeDetailsVal.textContent = `${e.target.value} pt`;
-      renderAllViews();
+      updateLiveDesignPreview();
     });
   }
 
   if (fontSizeIdSlider) {
     fontSizeIdSlider.addEventListener('input', (e) => {
       if (fontSizeIdVal) fontSizeIdVal.textContent = `${e.target.value} pt`;
-      renderAllViews();
+      updateLiveDesignPreview();
     });
   }
 
@@ -1637,7 +1640,7 @@ document.addEventListener('DOMContentLoaded', () => {
       livePreviewDimTag.textContent = `${renderOpts.labelWidthMm}×${renderOpts.labelHeightMm}mm (${idLen} kar${sliceInfo})`;
     }
 
-    const scale = 5; // 1mm = 5px for high quality crisp preview
+    const scale = 6; // 1mm = 6px untuk ketajaman HD konsisten dengan kartu folder
     const previewW = Math.round(renderOpts.labelWidthMm * scale);
     const previewH = Math.round(renderOpts.labelHeightMm * scale);
     liveDesignPreviewCanvas.width = previewW;
@@ -1682,6 +1685,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const sampleOptions = {
       ...renderOpts,
+      labelWidthMm: renderOpts.labelWidthMm,
+      labelHeightMm: renderOpts.labelHeightMm,
       targetWidth: previewW,
       targetHeight: previewH,
       labelLines: previewLabelLines,
@@ -1692,7 +1697,7 @@ document.addEventListener('DOMContentLoaded', () => {
       laci: previewLaci,
       kotak: previewKotak,
       topLabel: previewTopLabel,
-      margin: renderOpts.margin || 6
+      margin: renderOpts.margin || 8
     };
 
     try {
@@ -1716,7 +1721,6 @@ document.addEventListener('DOMContentLoaded', () => {
     barcodeSizeSlider.addEventListener('input', (e) => {
       if (barcodeSizeVal) barcodeSizeVal.textContent = `${e.target.value}%`;
       updateLiveDesignPreview();
-      renderAllViews();
     });
   }
 
@@ -1726,15 +1730,34 @@ document.addEventListener('DOMContentLoaded', () => {
         idSliceWrap.classList.toggle('hidden', e.target.value !== 'under-code');
       }
       updateLiveDesignPreview();
-      renderAllViews();
     });
   }
 
   if (idSliceSelect) {
     idSliceSelect.addEventListener('change', () => {
       updateLiveDesignPreview();
-      renderAllViews();
     });
+  }
+
+  // --- BUTTONS: TEST RENDER & TERAPKAN KE FOLDER ---
+  if (btnTestRenderPreview) {
+    btnTestRenderPreview.addEventListener('click', () => {
+      updateLiveDesignPreview();
+      showToast('Pratinjau desain diperbarui.');
+    });
+  }
+
+  const applyDesignSettingsToFolder = () => {
+    renderAllViews();
+    showToast('Pengaturan desain berhasil diterapkan ke semua label di folder!');
+  };
+
+  if (btnApplySettingsToFolder) {
+    btnApplySettingsToFolder.addEventListener('click', applyDesignSettingsToFolder);
+  }
+
+  if (btnFolderRefreshDesign) {
+    btnFolderRefreshDesign.addEventListener('click', applyDesignSettingsToFolder);
   }
 
   // --- GENERATE ACTION ---

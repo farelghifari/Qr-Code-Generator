@@ -652,6 +652,16 @@
                 <canvas id="live-design-preview-canvas" class="max-w-full h-auto bg-white rounded-md shadow-xs border border-slate-300"></canvas>
               </div>
               <div class="text-[10px] text-slate-400 text-center italic">Posisi layout & ukuran font langsung terlihat secara real-time</div>
+
+              <!-- Action buttons: Test Render & Terapkan ke Folder -->
+              <div class="grid grid-cols-2 gap-1.5 pt-1">
+                <button type="button" id="btn-test-render-preview" class="py-1.5 px-2 bg-white hover:bg-slate-50 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-semibold shadow-2xs transition flex items-center justify-center gap-1 cursor-pointer" title="Coba render ulang pratinjau dengan pengaturan terbaru">
+                  <span>🔄</span> Test Render
+                </button>
+                <button type="button" id="btn-apply-settings-to-folder" class="py-1.5 px-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold shadow-xs transition flex items-center justify-center gap-1 cursor-pointer" title="Terapkan pengaturan desain ini ke semua label di folder">
+                  <span>⚡</span> Terapkan ke Folder
+                </button>
+              </div>
             </div>
           </div>
 
@@ -806,6 +816,9 @@
           </button>
         </div>
         <div class="flex items-center gap-1.5 shrink-0 self-end sm:self-auto" id="folder-actions-container">
+          <button type="button" id="btn-folder-refresh-design" class="px-2.5 py-1 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg transition flex items-center gap-1 shadow-2xs" title="Terapkan pengaturan desain saat ini ke semua label di folder">
+            <span>🔄</span> Terapkan Desain
+          </button>
           <button type="button" id="btn-folder-sheet-download" class="px-2.5 py-1 text-xs font-bold text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300 rounded-lg transition flex items-center gap-1 shadow-2xs" title="Download Gambar 1 Lembar Penuh Folder Ini">
             <span>🖼️</span> Lembar Folder
           </button>
