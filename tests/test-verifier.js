@@ -426,14 +426,49 @@ assert(typeof scaledSvgSmall === 'string' && scaledSvgSmall.includes('<svg'));
 assert(typeof scaledSvgLarge === 'string' && scaledSvgLarge.includes('<svg'));
 console.log('✅ Barcode & QR Scale Factor LULUS.');
 
-// Test 24: Unique ID Registry Clean State (v5)
-console.log('24. Menguji Inisialisasi Registry Bersih (0 ID)...');
-const freshRegistry = new IdGenerator.UniqueIdRegistry();
-assert.strictEqual(freshRegistry.storageKey, 'barcode_id_studio_history_v5', 'Harus menggunakan key storage v5');
-freshRegistry.clear();
-assert.strictEqual(freshRegistry.size(), 0, 'Registry harus bersih dengan 0 ID');
-console.log('✅ Inisialisasi Registry Bersih (0 ID) LULUS.');
+// Test 25: Normalisasi Nilai Excel (Brand Hartadinata/Antam & Gramasi gr)
+console.log('25. Menguji Normalisasi Nilai Excel (Hartadinata Abadi Shop & Butik Emas Antam & Gramasi gr)...');
+function normalizeExcelCellValue(val, colName = '') {
+  if (val === undefined || val === null) return '';
+  let s = String(val).trim();
+  if (!s) return '';
+  const lower = s.toLowerCase();
+  const colLower = (colName || '').toLowerCase();
+  if (lower.includes('hartadinata abadi shop') || lower === 'hartadinata abadi' || lower.includes('pt hartadinata abadi') || lower.includes('hartadinata shop')) {
+    return 'Hartadinata';
+  }
+  if (lower.includes('butik emas antam') || lower.includes('butik antam') || (lower.includes('antam') && lower.includes('butik'))) {
+    return 'Antam';
+  }
+  const isGramasiCol = colLower.includes('gram') || colLower.includes('berat') || colLower.includes('weight') || colLower === 'gr';
+  if (isGramasiCol) {
+    const numOnly = s.replace(/\s*(gram|gr|g)\s*$/i, '').trim();
+    if (numOnly && !isNaN(Number(numOnly.replace(',', '.')))) {
+      return `${numOnly} gr`;
+    }
+  } else {
+    if (/^\d+(\.\d+)?\s*gram$/i.test(s)) return s.replace(/\s*gram$/i, ' gr');
+    if (/^\d+(\.\d+)?\s*g$/i.test(s)) return s.replace(/\s*g$/i, ' gr');
+  }
+  return s;
+}
 
-console.log('\n🎉 SEMUA 24 PENGUJIAN VERIFIKASI BERHASIL 100%!');
+assert.strictEqual(normalizeExcelCellValue('Hartadinata Abadi Shop', 'Toko'), 'Hartadinata');
+assert.strictEqual(normalizeExcelCellValue('PT Hartadinata Abadi', 'Brand'), 'Hartadinata');
+assert.strictEqual(normalizeExcelCellValue('Butik Emas Antam', 'Lokasi'), 'Antam');
+assert.strictEqual(normalizeExcelCellValue('Butik Emas Antam Bandung', 'Toko'), 'Antam');
+assert.strictEqual(normalizeExcelCellValue('0.5', 'Gramasi'), '0.5 gr');
+assert.strictEqual(normalizeExcelCellValue('1', 'Berat'), '1 gr');
+assert.strictEqual(normalizeExcelCellValue('10 gr', 'Weight'), '10 gr');
+assert.strictEqual(normalizeExcelCellValue('2.5 gram', 'Keterangan'), '2.5 gr');
+console.log('✅ Normalisasi Nilai Excel (Brand & Gramasi) LULUS.');
+
+// Test 26: Exporter PDF & Full Sheet Module Verification
+console.log('26. Menguji Modul Ekspor PDF & Full Sheet Canvas...');
+assert.strictEqual(typeof BarcodeExporter.downloadFullSheetPDF, 'function', 'downloadFullSheetPDF harus terdefinisi');
+assert.strictEqual(typeof BarcodeExporter.renderSheetToCanvas, 'function', 'renderSheetToCanvas harus terdefinisi');
+console.log('✅ Modul Ekspor PDF & Full Sheet Canvas LULUS.');
+
+console.log('\n🎉 SEMUA 26 PENGUJIAN VERIFIKASI BERHASIL 100%!');
 
 

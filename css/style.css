@@ -472,6 +472,27 @@ body {
     break-after: avoid !important;
   }
 
+  /* Sembunyikan tag dimensi cutout saat print */
+  .cutout-tag {
+    display: none !important;
+  }
+
+  /* Reset cutout container agar memenuhi kartu stiker cetak tanpa margin/padding ganda */
+  .label-sticker-cutout {
+    width: 100% !important;
+    height: 100% !important;
+    max-height: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
   /* Page break setiap 30 label jika dicetak tanpa wrapper */
   body.print-mode-tj-107 .barcode-item-card:nth-child(30n) {
     page-break-after: always !important;
@@ -484,7 +505,7 @@ body {
     max-width: 50mm !important;
     max-height: 18mm !important;
     box-sizing: border-box !important;
-    padding: 1mm 1.5mm !important;
+    padding: 0.4mm !important;
     margin: 0 !important;
     border: none !important;
     background: #ffffff !important;
@@ -498,14 +519,14 @@ body {
   }
 
   body.print-mode-tj-107.print-show-borders .barcode-item-card {
-    border: 0.5px dashed #94a3b8 !important;
+    border: 0.5px dashed #cbd5e1 !important;
   }
 
   body.print-mode-tj-107 .barcode-item-card canvas {
-    max-width: 47mm !important;
-    max-height: 16mm !important;
-    width: auto !important;
-    height: auto !important;
+    max-width: 49.2mm !important;
+    max-height: 17.2mm !important;
+    width: 100% !important;
+    height: 100% !important;
     display: block !important;
     margin: 0 auto !important;
     object-fit: contain !important;

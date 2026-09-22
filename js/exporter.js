@@ -434,14 +434,9 @@
   }
 
   /**
-   * 5. Download Full Sheet Image (PNG) - Mendukung Template Tom & Jerry & Kustom Sendiri
+   * Helper: Merender satu lembar (sheet) stiker ke objek Canvas (300 DPI)
    */
-  async function downloadFullSheetPNG(items, barcodeRenderOptions, sheetIndex = 0, showBorders = true, filename = null) {
-    if (!items || !items.length) {
-      alert('Tidak ada barcode untuk diunduh lembarannya.');
-      return;
-    }
-
+  function renderSheetToCanvas(items, barcodeRenderOptions, sheetIndex = 0, showBorders = true) {
     const paperWidthMm = barcodeRenderOptions.paperWidthMm || 165;
     const paperHeightMm = barcodeRenderOptions.paperHeightMm || 210;
     const labelWidthMm = barcodeRenderOptions.labelWidthMm || 50;
@@ -513,6 +508,7 @@
           ...barcodeRenderOptions,
           format: itemFormat,
           topLabel: itemObj.label || barcodeRenderOptions.topLabel || '',
+          labelLines: itemObj.labelLines || barcodeRenderOptions.labelLines || null,
           brand: itemObj.brand || barcodeRenderOptions.brand || '',
           gramasi: itemObj.gramasi || barcodeRenderOptions.gramasi || '',
           vault: itemObj.vault || barcodeRenderOptions.vault || '',
@@ -554,6 +550,19 @@
       }
     }
 
+    return sheetCanvas;
+  }
+
+  /**
+   * 5. Download Full Sheet Image (PNG) - Mendukung Template Tom & Jerry & Kustom Sendiri
+   */
+  async function downloadFullSheetPNG(items, barcodeRenderOptions, sheetIndex = 0, showBorders = true, filename = null) {
+    if (!items || !items.length) {
+      alert('Tidak ada barcode untuk diunduh lembarannya.');
+      return;
+    }
+
+    const sheetCanvas = renderSheetToCanvas(items, barcodeRenderOptions, sheetIndex, showBorders);
     const defaultFilename = filename || `Lembar_Label_Halaman_${sheetIndex + 1}.png`;
 
     return new Promise((resolve) => {
@@ -568,13 +577,67 @@
     });
   }
 
+  /**
+   * 6. Download Full Sheet PDF - Mendukung Satu Lembar atau SEMUA Halaman Sekaligus
+   */
+  async function downloadFullSheetPDF(items, barcodeRenderOptions, sheetIndex = 'all', showBorders = true, filename = null) {
+    if (!items || !items.length) {
+      alert('Tidak ada barcode untuk diekspor ke PDF.');
+      return;
+    }
+
+    const jsPDFLib = (typeof window !== 'undefined' && window.jspdf && window.jspdf.jsPDF) ||
+                     (typeof root !== 'undefined' && root && root.jspdf && root.jspdf.jsPDF) ||
+                     (typeof require === 'function' ? (function(){ try { return require('./jspdf.umd.min.js').jsPDF; } catch(e){ return null; } })() : null);
+
+    if (!jsPDFLib) {
+      alert('Modul jsPDF tidak ditemukan. Silakan gunakan tombol Cetak / PDF untuk mencetak melalui browser.');
+      return;
+    }
+
+    const paperWidthMm = barcodeRenderOptions.paperWidthMm || 165;
+    const paperHeightMm = barcodeRenderOptions.paperHeightMm || 210;
+    const cols = barcodeRenderOptions.cols || 3;
+    const rows = barcodeRenderOptions.rows || 10;
+    const itemsPerPage = Math.max(1, cols * rows);
+    const totalSheets = Math.ceil(items.length / itemsPerPage);
+
+    const doc = new jsPDFLib({
+      orientation: paperWidthMm > paperHeightMm ? 'landscape' : 'portrait',
+      unit: 'mm',
+      format: [paperWidthMm, paperHeightMm],
+      compress: true
+    });
+
+    const isAll = sheetIndex === 'all';
+    const sheetsToExport = isAll
+      ? Array.from({ length: totalSheets }, (_, i) => i)
+      : [parseInt(sheetIndex, 10) || 0];
+
+    for (let idx = 0; idx < sheetsToExport.length; idx++) {
+      const sIdx = sheetsToExport[idx];
+      if (idx > 0) {
+        doc.addPage([paperWidthMm, paperHeightMm], paperWidthMm > paperHeightMm ? 'landscape' : 'portrait');
+      }
+
+      const canvas = renderSheetToCanvas(items, barcodeRenderOptions, sIdx, showBorders);
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      doc.addImage(imgData, 'JPEG', 0, 0, paperWidthMm, paperHeightMm, undefined, 'FAST');
+    }
+
+    const defaultFilename = filename || (isAll ? 'Label_Tom_Jerry_107_Semua_Halaman.pdf' : `Label_Tom_Jerry_107_Halaman_${(parseInt(sheetIndex, 10) || 0) + 1}.pdf`);
+    doc.save(defaultFilename);
+  }
+
   return {
     downloadPNG,
     downloadSingleStickerPNG,
     downloadSVG,
     downloadCSV,
     downloadBatchZIP,
+    renderSheetToCanvas,
     downloadFullSheetPNG,
+    downloadFullSheetPDF,
     MiniZip
   };
 });

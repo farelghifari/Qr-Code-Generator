@@ -350,6 +350,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnExecutePrint = document.getElementById('btn-execute-print');
   const printSheetSelect = document.getElementById('print-sheet-select');
   const btnDownloadSheetPng = document.getElementById('btn-download-sheet-png');
+  const btnDownloadPdfAll = document.getElementById('btn-download-pdf-all');
+  const btnDownloadPdfSheet = document.getElementById('btn-download-pdf-sheet');
+  const printSheetPreviewCanvas = document.getElementById('print-sheet-preview-canvas');
+  const printPreviewSheetTag = document.getElementById('print-preview-sheet-tag');
   const printShowBordersChk = document.getElementById('print-show-borders-chk');
   const printScopeAll = document.getElementById('print-scope-all');
   const printScopeSheet = document.getElementById('print-scope-sheet');
@@ -451,6 +455,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Ensure backwards compatibility for batches and item attributes
     if (generatedItems.length > 0) {
       let needsBatchSave = false;
+      let needsItemSave = false;
       generatedItems.forEach(item => {
         if (!item.batchId) {
           const defaultBatchName = 'Batch Awal';
@@ -462,6 +467,11 @@ document.addEventListener('DOMContentLoaded', () => {
           }
           item.batchId = defB.id;
           item.batchName = defB.name;
+          needsItemSave = true;
+        }
+        if (!item.status) {
+          item.status = 'pending';
+          needsItemSave = true;
         }
         if (!Array.isArray(item.extraRows)) {
           item.extraRows = [];
@@ -470,13 +480,26 @@ document.addEventListener('DOMContentLoaded', () => {
       if (needsBatchSave) {
         saveBatchesToStorage();
       }
+      if (needsItemSave) {
+        saveItemsToStorage();
+      }
     }
   }
 
   // --- UPDATE BADGES & STATS ---
   function updateStats() {
-    const total = generatedItems.length;
-    const printed = generatedItems.filter(item => item.status === 'printed').length;
+    // Pastikan setiap item memiliki status valid
+    generatedItems.forEach(item => {
+      if (!item.status) item.status = 'pending';
+    });
+
+    const folderFilter = (tableFolderFilter && tableFolderFilter.value) || 'all';
+    const itemsForStats = folderFilter === 'all'
+      ? generatedItems
+      : generatedItems.filter(item => item.batchId === folderFilter);
+
+    const total = itemsForStats.length;
+    const printed = itemsForStats.filter(item => item.status === 'printed').length;
     const pending = total - printed;
 
     // Registry badge
@@ -484,7 +507,7 @@ document.addEventListener('DOMContentLoaded', () => {
     registryCountBadge.textContent = `${regCount} ID`;
 
     // Pill badge & management stats
-    if (managementCountPill) managementCountPill.textContent = total;
+    if (managementCountPill) managementCountPill.textContent = generatedItems.length;
     if (statTotalCount) statTotalCount.textContent = total;
     if (statPendingCount) statPendingCount.textContent = pending;
     if (statPrintedCount) statPrintedCount.textContent = printed;
@@ -518,7 +541,9 @@ document.addEventListener('DOMContentLoaded', () => {
       barcodeGridView.classList.remove('block');
       barcodeManagementView.classList.remove('hidden');
       barcodeManagementView.classList.add('flex');
+      updateFilteredItems();
       renderManagementTable();
+      updateStats();
     }
   }
 
@@ -764,6 +789,47 @@ document.addEventListener('DOMContentLoaded', () => {
     return 'Hartadinata';
   }
 
+  // Normalisasi isi sel Excel sesuai standar:
+  // 1. "Hartadinata Abadi Shop" -> "Hartadinata"
+  // 2. "Butik Emas Antam" -> "Antam"
+  // 3. Angka gramasi ditambahkan satuan "gr" di belakangnya (misal "0.5" -> "0.5 gr")
+  function normalizeExcelCellValue(val, colName = '') {
+    if (val === undefined || val === null) return '';
+    let s = String(val).trim();
+    if (!s) return '';
+
+    const lower = s.toLowerCase();
+    const colLower = (colName || '').toLowerCase();
+
+    // 1. Rename "Hartadinata Abadi Shop" / variannya menjadi "Hartadinata"
+    if (lower.includes('hartadinata abadi shop') || lower === 'hartadinata abadi' || lower.includes('pt hartadinata abadi') || lower.includes('hartadinata shop')) {
+      return 'Hartadinata';
+    }
+
+    // 2. Rename "Butik Emas Antam" / variannya menjadi "Antam"
+    if (lower.includes('butik emas antam') || lower.includes('butik antam') || (lower.includes('antam') && lower.includes('butik'))) {
+      return 'Antam';
+    }
+
+    // 3. Format angka gramasi: tambahkan "gr" di belakang angka
+    const isGramasiCol = colLower.includes('gram') || colLower.includes('berat') || colLower.includes('weight') || colLower === 'gr';
+    if (isGramasiCol) {
+      const numOnly = s.replace(/\s*(gram|gr|g)\s*$/i, '').trim();
+      if (numOnly && !isNaN(Number(numOnly.replace(',', '.')))) {
+        return `${numOnly} gr`;
+      }
+    } else {
+      if (/^\d+(\.\d+)?\s*gram$/i.test(s)) {
+        return s.replace(/\s*gram$/i, ' gr');
+      }
+      if (/^\d+(\.\d+)?\s*g$/i.test(s)) {
+        return s.replace(/\s*g$/i, ' gr');
+      }
+    }
+
+    return s;
+  }
+
   function setExcelFormatMode(mode) {
     excelFormatMode = mode;
     updateExcelSample();
@@ -783,9 +849,13 @@ document.addEventListener('DOMContentLoaded', () => {
       excelColumnConfigs.forEach(cfg => {
         if (cfg.colIdx === excelBarcodeColIdx) return;
         if (cfg.enabled && cfg.targetRow >= 1 && cfg.targetRow <= 6) {
-          const val = row[cfg.colIdx] !== undefined ? String(row[cfg.colIdx]).trim() : '';
+          const raw = row[cfg.colIdx] !== undefined ? row[cfg.colIdx] : '';
+          const val = normalizeExcelCellValue(raw, cfg.colName);
           if (val) {
-            rowBuckets[cfg.targetRow - 1].push(val);
+            const bucket = rowBuckets[cfg.targetRow - 1];
+            if (!bucket.includes(val)) {
+              bucket.push(val);
+            }
           }
         }
       });
@@ -1518,6 +1588,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const p = uuidPrefix ? uuidPrefix.value : '';
         return `${p}9b1deb4d-3b7d`;
       } else if (currentMode === 'custom') {
+        if (excelRawRows && excelRawRows.length > 0) {
+          const colIdIdx = excelBarcodeColIdx || 0;
+          const firstVal = String(excelRawRows[0][colIdIdx] !== undefined ? excelRawRows[0][colIdIdx] : '').trim();
+          if (firstVal) return firstVal;
+        }
         if (customTextarea && customTextarea.value.trim()) {
           const lines = customTextarea.value.split('\n').map(l => l.trim()).filter(Boolean);
           if (lines.length > 0) return lines[0];
@@ -1562,19 +1637,53 @@ document.addEventListener('DOMContentLoaded', () => {
     liveDesignPreviewCanvas.style.maxWidth = '280px';
     liveDesignPreviewCanvas.style.height = 'auto';
 
-    const sampleTitle = (topLabelInput && topLabelInput.value.trim()) || 'Hartadinata - 0.5 gr';
+    let previewLabelLines = null;
+    let previewTopLabel = (topLabelInput && topLabelInput.value.trim()) || '';
+    let previewBrand = getGoldBrand() || 'Hartadinata';
+    let previewGramasi = '0.5 gr';
+    let previewVault = 'Vault 1';
+    let previewLemari = 'Lemari 1';
+    let previewLaci = 'Laci 1';
+    let previewKotak = 'Kotak 01';
+
+    // Jika ada data Excel yang dimuat, gunakan data baris nyata pertama untuk pratinjau yang 100% akurat
+    if (excelRawRows && excelRawRows.length > 0) {
+      const formatted = formatRowFromConfigs(excelRawRows[0]);
+      if (formatted.labelLines && formatted.labelLines.length > 0) {
+        previewLabelLines = formatted.labelLines;
+        previewTopLabel = formatted.fullLabel;
+      }
+    } else if (generatedItems && generatedItems.length > 0) {
+      const first = generatedItems[0];
+      if (first.labelLines && first.labelLines.length > 0) {
+        previewLabelLines = first.labelLines;
+      }
+      previewTopLabel = first.label || previewTopLabel;
+      previewBrand = first.brand || previewBrand;
+      previewGramasi = first.gramasi || previewGramasi;
+      previewVault = first.vault || previewVault;
+      previewLemari = first.lemari || previewLemari;
+      previewLaci = first.laci || previewLaci;
+      previewKotak = first.kotak || previewKotak;
+    }
+
+    if (!previewTopLabel && !previewLabelLines) {
+      previewTopLabel = 'Hartadinata - 0.5 gr';
+    }
+
     const sampleOptions = {
       ...renderOpts,
       targetWidth: previewW,
       targetHeight: previewH,
-      brand: 'Hartadinata',
-      gramasi: '0.5 gr',
-      vault: 'Vault 1',
-      lemari: 'Lemari 1',
-      laci: 'Laci 1',
-      kotak: 'Kotak 01',
-      topLabel: sampleTitle,
-      margin: 6
+      labelLines: previewLabelLines,
+      brand: previewBrand,
+      gramasi: previewGramasi,
+      vault: previewVault,
+      lemari: previewLemari,
+      laci: previewLaci,
+      kotak: previewKotak,
+      topLabel: previewTopLabel,
+      margin: renderOpts.margin || 6
     };
 
     try {
@@ -1708,9 +1817,11 @@ document.addEventListener('DOMContentLoaded', () => {
               if (Array.isArray(excelColumnConfigs)) {
                 excelColumnConfigs.forEach(cfg => {
                   if (!cfg.enabled || cfg.colIdx === colIdIdx) return;
-                  const v = row[cfg.colIdx] !== undefined ? String(row[cfg.colIdx]).trim() : '';
+                  const rawV = row[cfg.colIdx] !== undefined ? row[cfg.colIdx] : '';
+                  const v = normalizeExcelCellValue(rawV, cfg.colName);
                   const name = (cfg.colName || '').toLowerCase();
                   if (name.includes('gramasi') || name.includes('gram') || name.includes('weight')) gramasiVal = v;
+                  else if (name.includes('brand') || name.includes('toko') || name.includes('vendor')) brandVal = v;
                   else if (name.includes('vault') || name.includes('brankas')) vaultVal = v;
                   else if (name.includes('lemari') || name.includes('cabinet')) lemariVal = v;
                   else if (name.includes('laci') || name.includes('drawer')) laciVal = v;
@@ -2335,10 +2446,18 @@ document.addEventListener('DOMContentLoaded', () => {
     syncSelectAllState();
   }
 
-  // Listener untuk filter folder di tabel management
+  // Listener untuk filter folder dan status di tabel management
   if (tableFolderFilter) {
     tableFolderFilter.addEventListener('change', () => {
       renderManagementTable();
+      updateStats();
+    });
+  }
+  if (tableStatusFilter) {
+    tableStatusFilter.addEventListener('change', () => {
+      updateFilteredItems();
+      renderManagementTable();
+      updateStats();
     });
   }
 
@@ -2687,6 +2806,56 @@ document.addEventListener('DOMContentLoaded', () => {
     if (printTotalLabelsBadge) {
       printTotalLabelsBadge.textContent = `${items.length} label · ${totalSheets} lembar`;
     }
+
+    // Perbarui pratinjau lembaran presisi
+    renderSheetPreviewInPrintModal();
+  }
+
+  // --- RENDER LIVE EXACT SHEET THUMBNAIL PREVIEW IN PRINT MODAL ---
+  function renderSheetPreviewInPrintModal() {
+    if (!printSheetPreviewCanvas) return;
+    const items = lastFilteredItems.length ? lastFilteredItems : generatedItems;
+    if (!items || !items.length) {
+      printSheetPreviewCanvas.width = 240;
+      printSheetPreviewCanvas.height = 140;
+      const ctx = printSheetPreviewCanvas.getContext('2d');
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(0, 0, 240, 140);
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '11px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Belum ada label untuk dipratinjau', 120, 70);
+      return;
+    }
+
+    const renderOpts = getRenderOptions();
+    const sheetIdx = parseInt(printSheetSelect ? printSheetSelect.value : '0', 10) || 0;
+    const showBorders = printShowBordersChk ? printShowBordersChk.checked : true;
+
+    if (printPreviewSheetTag) {
+      const templateName = (presetTemplateSelect ? presetTemplateSelect.value : 'tj-107').toUpperCase();
+      const cap = renderOpts.cols * renderOpts.rows;
+      printPreviewSheetTag.textContent = `${templateName} · ${renderOpts.paperWidthMm}×${renderOpts.paperHeightMm}mm (Lembar ${sheetIdx + 1} / ${cap} Label)`;
+    }
+
+    try {
+      if (BarcodeExporter && BarcodeExporter.renderSheetToCanvas) {
+        const fullSheetCanvas = BarcodeExporter.renderSheetToCanvas(items, renderOpts, sheetIdx, showBorders);
+        const maxThumbW = 260;
+        const aspect = fullSheetCanvas.width / fullSheetCanvas.height;
+        const thumbW = maxThumbW;
+        const thumbH = Math.round(maxThumbW / aspect);
+
+        printSheetPreviewCanvas.width = thumbW;
+        printSheetPreviewCanvas.height = thumbH;
+        const ctx = printSheetPreviewCanvas.getContext('2d');
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(fullSheetCanvas, 0, 0, thumbW, thumbH);
+      }
+    } catch (err) {
+      console.warn('Gagal merender pratinjau lembaran:', err);
+    }
   }
 
   // --- DOWNLOAD FULL SHEET (CUSTOM / TOM & JERRY 107) ---
@@ -2724,6 +2893,39 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  // --- DOWNLOAD PDF SHEET (ALL PAGES OR SINGLE SHEET) ---
+  async function triggerPDFDownload(scope = 'all') {
+    const items = lastFilteredItems.length ? lastFilteredItems : generatedItems;
+    if (!items.length) {
+      showToast('Tidak ada barcode untuk diekspor ke PDF.', 'error');
+      return;
+    }
+
+    const showBorders = printShowBordersChk ? printShowBordersChk.checked : true;
+    const renderOpts = getRenderOptions();
+    const sheetIdx = scope === 'all' ? 'all' : (parseInt(printSheetSelect ? printSheetSelect.value : '0', 10) || 0);
+
+    loadingOverlay.classList.add('active');
+    loadingText.textContent = scope === 'all' 
+      ? 'Menyusun dokumen PDF untuk semua halaman stiker...'
+      : `Menyusun dokumen PDF untuk Lembar ${sheetIdx + 1}...`;
+
+    try {
+      await BarcodeExporter.downloadFullSheetPDF(
+        items,
+        renderOpts,
+        sheetIdx,
+        showBorders
+      );
+      showToast(scope === 'all' ? 'Dokumen PDF (Semua Halaman) berhasil diunduh!' : `Dokumen PDF Lembar ${sheetIdx + 1} berhasil diunduh!`, 'success');
+    } catch (err) {
+      console.error('Gagal unduh PDF:', err);
+      showToast('Gagal mengunduh PDF: ' + err.message, 'error');
+    } finally {
+      loadingOverlay.classList.remove('active');
+    }
+  }
+
   if (btnQuickDownloadSheet) {
     btnQuickDownloadSheet.addEventListener('click', () => {
       const items = lastFilteredItems.length ? lastFilteredItems : generatedItems;
@@ -2744,15 +2946,46 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  if (btnDownloadPdfAll) {
+    btnDownloadPdfAll.addEventListener('click', () => {
+      triggerPDFDownload('all');
+    });
+  }
+
+  if (btnDownloadPdfSheet) {
+    btnDownloadPdfSheet.addEventListener('click', () => {
+      triggerPDFDownload('sheet');
+    });
+  }
+
+  if (printSheetSelect) {
+    printSheetSelect.addEventListener('change', () => {
+      renderSheetPreviewInPrintModal();
+    });
+  }
+
+  if (printShowBordersChk) {
+    printShowBordersChk.addEventListener('change', () => {
+      renderSheetPreviewInPrintModal();
+    });
+  }
+
+  document.querySelectorAll('input[name="print-layout"]').forEach(radio => {
+    radio.addEventListener('change', () => {
+      renderSheetPreviewInPrintModal();
+    });
+  });
+
   // --- PRINT MODAL ACTIONS ---
   btnOpenPrintModal.addEventListener('click', () => {
-    if (!lastFilteredItems.length) {
+    if (!lastFilteredItems.length && !generatedItems.length) {
       showToast('Buat barcode terlebih dahulu sebelum mencetak.', 'error');
       return;
     }
     updatePrintSheetSelector();
     printModal.classList.remove('hidden');
     printModal.classList.add('flex');
+    renderSheetPreviewInPrintModal();
   });
 
   const closePrintModal = () => {

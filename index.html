@@ -1048,29 +1048,43 @@
   </div>
 
   <!-- MODAL CETAK / PRINT OPTIONS -->
-  <div id="print-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4">
-    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+  <div id="print-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 overflow-y-auto">
+    <div class="bg-white rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto my-auto">
       <div class="flex items-center justify-between border-b border-slate-100 pb-3">
         <h3 class="font-bold text-slate-900 text-base flex items-center gap-2">
           <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
           </svg>
-          Pilihan Tata Letak Cetak Label
+          Pilihan Cetak & Download Lembaran
         </h3>
-        <button type="button" id="btn-close-print-modal" class="text-slate-400 hover:text-slate-600 text-lg">&times;</button>
+        <button type="button" id="btn-close-print-modal" class="text-slate-400 hover:text-slate-600 text-xl font-bold px-1">&times;</button>
       </div>
 
-      <div class="space-y-3 text-xs">
-        <p class="text-slate-600">Pilih format kertas yang sesuai dengan printer Anda:</p>
+      <div class="space-y-3.5 text-xs">
+        <!-- PRATINJAU EXACT LEMBARAN UTUH (SHEET PREVIEW) -->
+        <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-slate-700 flex items-center gap-1.5">
+              <span>📐 Pratinjau Lembaran Cetak (Exact Sheet Layout):</span>
+            </span>
+            <span id="print-preview-sheet-tag" class="bg-amber-100 text-amber-900 font-bold px-2 py-0.5 rounded text-[10px] border border-amber-300">TJ 107 · 165×210mm (30 Label)</span>
+          </div>
+          <div class="p-2 bg-white rounded-lg border border-slate-200 flex items-center justify-center overflow-hidden min-h-[140px] max-h-[180px] shadow-inner">
+            <canvas id="print-sheet-preview-canvas" class="max-h-[160px] w-auto border border-slate-300 rounded shadow-xs bg-white"></canvas>
+          </div>
+          <p class="text-[10px] text-slate-500 italic text-center">Posisi margin, jarak kolom (gap), dan pemotongan label di atas 100% presisi sesuai hasil cetak asli.</p>
+        </div>
+
+        <p class="text-slate-600 font-medium">Pilih format kertas yang sesuai dengan printer Anda:</p>
 
         <div class="space-y-2">
           <!-- OPSI UTAMA: TOM & JERRY NO. 107 -->
-          <label class="flex items-center p-3 border-2 border-amber-500 bg-amber-50/50 rounded-xl cursor-pointer hover:bg-amber-50 transition shadow-sm">
+          <label class="flex items-center p-3 border-2 border-amber-500 bg-amber-50/50 rounded-xl cursor-pointer hover:bg-amber-50 transition shadow-xs">
             <input type="radio" name="print-layout" value="tj-107" checked class="text-amber-600 focus:ring-amber-500">
             <div class="ml-3 flex-1">
               <div class="flex items-center justify-between">
                 <span class="block font-bold text-amber-950 text-xs">Stiker Tom & Jerry No. 107 (18 mm x 50 mm)</span>
-                <span class="bg-amber-600 text-white text-[9px] font-extrabold px-2 py-0.5 rounded shadow-sm">Ukuran 1,8 x 5 cm</span>
+                <span class="bg-amber-600 text-white text-[9px] font-extrabold px-2 py-0.5 rounded shadow-xs">Ukuran 1,8 x 5 cm</span>
               </div>
               <span class="text-amber-800 text-[11px] block mt-0.5">Format 3 kolom x 10 baris (30 stiker/lembar) pas presisi label TJ 107</span>
             </div>
@@ -1121,22 +1135,22 @@
             <label class="flex items-start gap-2 p-2 bg-white border-2 border-indigo-500 rounded-lg cursor-pointer hover:bg-indigo-50/30 transition shadow-2xs">
               <input type="radio" name="print-scope" value="all" id="print-scope-all" checked class="mt-0.5 text-indigo-600 focus:ring-indigo-500">
               <div>
-                <span class="font-bold text-slate-800 block text-[11px]">Cetak Semua (Print All)</span>
-                <span class="text-[10px] text-slate-500 block leading-tight">Cetak seluruh label otomatis bersambung antar lembar</span>
+                <span class="font-bold text-slate-800 block text-[11px]">Semua Halaman (Print All)</span>
+                <span class="text-[10px] text-slate-500 block leading-tight">Cetak seluruh barcode dari daftar multi-halaman</span>
               </div>
             </label>
             <label class="flex items-start gap-2 p-2 bg-white border border-slate-200 rounded-lg cursor-pointer hover:border-indigo-400 transition shadow-2xs">
               <input type="radio" name="print-scope" value="sheet" id="print-scope-sheet" class="mt-0.5 text-indigo-600 focus:ring-indigo-500">
               <div>
                 <span class="font-bold text-slate-800 block text-[11px]">Lembar Tertentu Saja</span>
-                <span class="text-[10px] text-slate-500 block leading-tight">Pilih 1 nomor lembar untuk dicetak</span>
+                <span class="text-[10px] text-slate-500 block leading-tight">Pilih nomor lembar spesifik</span>
               </div>
             </label>
           </div>
         </div>
 
         <!-- Pilihan Lembar Halaman (1 lembar = 30 label) -->
-        <div id="print-sheet-selector-group" class="p-2.5 bg-amber-50/70 border border-amber-200 rounded-xl space-y-1 text-xs">
+        <div id="print-sheet-selector-group" class="p-2.5 bg-amber-50/70 border border-amber-200 rounded-xl space-y-1 text-xs hidden">
           <div class="flex items-center justify-between">
             <span class="font-bold text-amber-950">Pilih Lembar (Halaman):</span>
             <select id="print-sheet-select" class="px-2.5 py-1 bg-white border border-amber-300 rounded font-semibold text-amber-900 outline-none">
@@ -1147,7 +1161,7 @@
         </div>
 
         <!-- Checkbox Garis Bantu Batas Stiker -->
-        <div class="pt-2 border-t border-slate-100">
+        <div class="pt-2 border-t border-slate-100 flex items-center justify-between">
           <label class="inline-flex items-center gap-2 cursor-pointer text-slate-700 text-xs font-medium">
             <input type="checkbox" id="print-show-borders-chk" checked class="rounded text-indigo-600 focus:ring-indigo-500">
             <span>Tampilkan garis bantu potong / batas stiker saat mencetak</span>
@@ -1155,13 +1169,29 @@
         </div>
       </div>
 
-      <div class="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-100">
-        <button type="button" id="btn-download-sheet-png" class="px-3.5 py-2 text-xs font-bold text-amber-950 bg-amber-200 hover:bg-amber-300 border border-amber-400 rounded-lg shadow-sm transition flex items-center gap-1.5">
-          🖼️ Download Gambar Lembar (PNG 300 DPI)
-        </button>
-        <div class="flex items-center gap-2">
-          <button type="button" id="btn-cancel-print" class="px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg">Tutup</button>
-          <button type="button" id="btn-execute-print" class="px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow">🖨️ Cetak / PDF</button>
+      <!-- TOMBOL EKSPOR & CETAK -->
+      <div class="space-y-2 pt-3 border-t border-slate-100">
+        <!-- OPSI PDF DOWNLOAD -->
+        <div class="grid grid-cols-2 gap-2">
+          <button type="button" id="btn-download-pdf-all" class="w-full px-3 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-lg shadow-sm transition flex items-center justify-center gap-1.5" title="Download semua lembaran langsung ke 1 file PDF">
+            <span>📑</span> Download PDF (Semua Halaman)
+          </button>
+          <button type="button" id="btn-download-pdf-sheet" class="w-full px-3 py-2 text-xs font-bold text-rose-900 bg-rose-50 hover:bg-rose-100 border border-rose-300 rounded-lg shadow-sm transition flex items-center justify-center gap-1.5" title="Download hanya lembar aktif ke file PDF">
+            <span>📄</span> Download PDF (Lembar Ini)
+          </button>
+        </div>
+
+        <!-- OPSI PNG & CETAK BROWSER -->
+        <div class="flex flex-wrap items-center justify-between gap-2 pt-1">
+          <button type="button" id="btn-download-sheet-png" class="px-3.5 py-2 text-xs font-bold text-amber-950 bg-amber-200 hover:bg-amber-300 border border-amber-400 rounded-lg shadow-sm transition flex items-center gap-1.5">
+            🖼️ Download Gambar PNG (300 DPI)
+          </button>
+          <div class="flex items-center gap-2">
+            <button type="button" id="btn-cancel-print" class="px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg">Tutup</button>
+            <button type="button" id="btn-execute-print" class="px-4 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow flex items-center gap-1.5">
+              🖨️ Cetak / Print Browser
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -1313,6 +1343,7 @@
   <script src="js/xlsx.full.min.js"></script>
 
   <!-- Local Modular Scripts -->
+  <script src="js/jspdf.umd.min.js"></script>
   <script src="js/barcode-engine.js"></script>
   <script src="js/id-generator.js"></script>
   <script src="js/exporter.js"></script>
