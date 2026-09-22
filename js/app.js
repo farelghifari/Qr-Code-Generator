@@ -6,8 +6,8 @@
 document.addEventListener('DOMContentLoaded', () => {
   'use strict';
 
-  const ITEMS_STORAGE_KEY = 'barcode_studio_items_v3';
-  const BATCHES_STORAGE_KEY = 'barcode_studio_batches_v1';
+  const ITEMS_STORAGE_KEY = 'barcode_studio_items_v4';
+  const BATCHES_STORAGE_KEY = 'barcode_studio_batches_v2';
 
   // Template Presets Dictionary
   const TEMPLATE_PRESETS = {
@@ -139,6 +139,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const activeFolderCountBadge = document.getElementById('active-folder-count-badge');
   const btnFolderSheetDownload = document.getElementById('btn-folder-sheet-download');
   const btnFolderZipDownload = document.getElementById('btn-folder-zip-download');
+  const btnFolderDelete = document.getElementById('btn-folder-delete');
 
   // DOM Elements - Code Type Switcher
   const btnTypeBarcode = document.getElementById('btn-type-barcode');
@@ -174,6 +175,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const fontSizeDetailsVal = document.getElementById('font-size-details-val');
   const fontSizeIdSlider = document.getElementById('font-size-id-slider');
   const fontSizeIdVal = document.getElementById('font-size-id-val');
+  const liveDesignPreviewCanvas = document.getElementById('live-design-preview-canvas');
+  const livePreviewDimTag = document.getElementById('live-preview-dim-tag');
 
   // DOM Elements - Pre-generation Extra Rows
   const pregenExtraRowsList = document.getElementById('pregen-extra-rows-list');
@@ -405,6 +408,11 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function loadItemsFromStorage() {
+    try {
+      ['barcode_studio_items_v1', 'barcode_studio_items_v2', 'barcode_studio_items_v3', 'barcode_studio_batches_v1'].forEach(k => {
+        try { localStorage.removeItem(k); } catch (e) {}
+      });
+    } catch (e) {}
     loadBatchesFromStorage();
     try {
       const saved = localStorage.getItem(ITEMS_STORAGE_KEY);
@@ -1260,6 +1268,57 @@ document.addEventListener('DOMContentLoaded', () => {
     };
   }
 
+  // --- REAL-TIME LIVE DESIGN PREVIEW ---
+  function updateLiveDesignPreview() {
+    if (!liveDesignPreviewCanvas) return;
+    const renderOpts = getRenderOptions();
+
+    if (livePreviewDimTag) {
+      livePreviewDimTag.textContent = `${renderOpts.labelWidthMm} × ${renderOpts.labelHeightMm} mm`;
+    }
+
+    const scale = 5; // 1mm = 5px for high quality crisp preview
+    const previewW = Math.round(renderOpts.labelWidthMm * scale);
+    const previewH = Math.round(renderOpts.labelHeightMm * scale);
+    liveDesignPreviewCanvas.width = previewW;
+    liveDesignPreviewCanvas.height = previewH;
+    liveDesignPreviewCanvas.style.width = '100%';
+    liveDesignPreviewCanvas.style.maxWidth = '280px';
+    liveDesignPreviewCanvas.style.height = 'auto';
+
+    const sampleId = 'ORD00000000160600001';
+    const sampleTitle = (topLabelInput && topLabelInput.value.trim()) || 'Harta - 0.5 gr';
+    const sampleOptions = {
+      ...renderOpts,
+      targetWidth: previewW,
+      targetHeight: previewH,
+      brand: 'Harta',
+      gramasi: '0.5 gr',
+      vault: 'Vault 1',
+      lemari: 'Lemari 1',
+      laci: 'Laci 1',
+      kotak: 'Kotak 01',
+      topLabel: sampleTitle,
+      margin: 6
+    };
+
+    try {
+      if (renderOpts.codeType === 'QR' || renderOpts.format === 'QR') {
+        BarcodeEngine.renderQRCodeToCanvas(liveDesignPreviewCanvas, sampleId, sampleOptions);
+      } else {
+        BarcodeEngine.renderToCanvas(liveDesignPreviewCanvas, sampleId, sampleOptions);
+      }
+    } catch (err) {
+      console.warn('Gagal merender live design preview:', err);
+    }
+  }
+
+  if (topLabelInput) {
+    topLabelInput.addEventListener('input', () => {
+      updateLiveDesignPreview();
+    });
+  }
+
   // --- GENERATE ACTION ---
   btnGenerate.addEventListener('click', () => {
     generateBarcodes();
@@ -1580,6 +1639,17 @@ document.addEventListener('DOMContentLoaded', () => {
         <span class="truncate max-w-[130px]">${escapeHtml(batch.name)}</span>
         <span class="pill-count">${bCount}</span>
       `;
+
+      const delBtn = document.createElement('span');
+      delBtn.className = 'hover:text-rose-600 font-bold ml-1 text-xs px-1 text-slate-400 hover:bg-rose-50 rounded transition shrink-0';
+      delBtn.title = `Hapus folder ${batch.name}`;
+      delBtn.textContent = '×';
+      delBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        deleteFolder(batch.id);
+      });
+      btn.appendChild(delBtn);
+
       btn.addEventListener('click', () => {
         activeFolderId = batch.id;
         renderAllViews();
@@ -1622,6 +1692,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderManagementTable();
     updateStats();
     updatePrintSheetSelector();
+    updateLiveDesignPreview();
   }
 
   // --- RENDER GRID RESULTS ---
@@ -2176,6 +2247,45 @@ document.addEventListener('DOMContentLoaded', () => {
       } finally {
         loadingOverlay.classList.remove('active');
       }
+    });
+  }
+
+  // --- DELETE FOLDER / BATCH ---
+  function deleteFolder(folderId) {
+    if (!folderId || folderId === 'all') {
+      showToast('Pilih salah satu folder tertentu terlebih dahulu untuk menghapusnya.', 'info');
+      return;
+    }
+    const targetBatch = batches.find(b => b.id === folderId);
+    if (!targetBatch) return;
+
+    const itemsInBatch = generatedItems.filter(item => (item.batchId || 'default') === folderId);
+    const confirmMsg = itemsInBatch.length > 0
+      ? `Apakah Anda yakin ingin menghapus folder "${targetBatch.name}" beserta seluruh ${itemsInBatch.length} barcode di dalamnya?\n\nSemua data barcode di folder ini akan dihapus.`
+      : `Apakah Anda yakin ingin menghapus folder kosong "${targetBatch.name}"?`;
+
+    if (confirm(confirmMsg)) {
+      generatedItems = generatedItems.filter(item => (item.batchId || 'default') !== folderId);
+      batches = batches.filter(b => b.id !== folderId);
+      selectedIds.clear();
+      saveItemsToStorage();
+      saveBatchesToStorage();
+      if (activeFolderId === folderId) {
+        activeFolderId = 'all';
+      }
+      renderFolderPills();
+      renderAllViews();
+      showToast(`Folder "${targetBatch.name}" berhasil dihapus!`, 'success');
+    }
+  }
+
+  if (btnFolderDelete) {
+    btnFolderDelete.addEventListener('click', () => {
+      if (activeFolderId === 'all') {
+        showToast('Pilih salah satu folder terlebih dahulu pada tab pill di atas untuk menghapusnya.', 'info');
+        return;
+      }
+      deleteFolder(activeFolderId);
     });
   }
 

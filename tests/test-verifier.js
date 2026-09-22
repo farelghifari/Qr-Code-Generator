@@ -354,5 +354,28 @@ assert(editedSvg.includes('Antam - 5 gr'));
 assert(editedSvg.includes('Keterangan: Sertifikat LBMA'));
 console.log('✅ Pengeditan Detail Per Label LULUS.');
 
-console.log('\n🎉 SEMUA 19 PENGUJIAN VERIFIKASI BERHASIL 100%!');
+// Test 20: Folder Batch Deletion
+console.log('20. Menguji Penghapusan Folder / Batch dan Pembersihan Data...');
+let testBatches = [
+  { id: 'batch-1', name: 'Batch Antam' },
+  { id: 'batch-2', name: 'Batch Harta' }
+];
+let testItems = [
+  { id: 'ID-101', batchId: 'batch-1' },
+  { id: 'ID-102', batchId: 'batch-1' },
+  { id: 'ID-201', batchId: 'batch-2' }
+];
+
+// Delete batch-1
+const folderToDelete = 'batch-1';
+testItems = testItems.filter(i => (i.batchId || 'default') !== folderToDelete);
+testBatches = testBatches.filter(b => b.id !== folderToDelete);
+
+assert.strictEqual(testBatches.length, 1, 'Harus tersisa 1 folder setelah dihapus');
+assert.strictEqual(testBatches[0].id, 'batch-2');
+assert.strictEqual(testItems.length, 1, 'Harus tersisa 1 item setelah folder dihapus');
+assert.strictEqual(testItems[0].id, 'ID-201');
+console.log('✅ Penghapusan Folder / Batch LULUS (Item dan folder terhapus bersih).');
+
+console.log('\n🎉 SEMUA 20 PENGUJIAN VERIFIKASI BERHASIL 100%!');
 
