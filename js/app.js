@@ -2543,9 +2543,9 @@ document.addEventListener('DOMContentLoaded', () => {
     return div.innerHTML;
   }
 
-  // --- INITIAL RUN (CLEAN SLATE & LOCKED TO TOM & JERRY 107) ---
+  // --- INITIAL RUN (CLEAN SLATE & DEFAULT TOM & JERRY 107) ---
   loadItemsFromStorage();
-  setLockedTJ107(true);
+  applyPresetTemplate('tj-107');
   updateModePreviews();
   renderAllViews();
 });
