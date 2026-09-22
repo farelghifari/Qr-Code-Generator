@@ -401,7 +401,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const cfgRemoteUrl = document.getElementById('cfg-remote-url');
   const cfgRemoteUser = document.getElementById('cfg-remote-user');
   const cfgRemotePass = document.getElementById('cfg-remote-pass');
+  const cfgRemoteFolder = document.getElementById('cfg-remote-folder');
   const btnSaveRemoteConfig = document.getElementById('btn-save-remote-config');
+  const btnUploadDirectFilebrowser = document.getElementById('btn-upload-direct-filebrowser');
   const btnResetToLocalDb = document.getElementById('btn-reset-to-local-db');
   const btnModalClearAllData = document.getElementById('btn-modal-clear-all-data');
 
@@ -3022,6 +3024,90 @@ document.addEventListener('DOMContentLoaded', () => {
         updateDockerModalStatus();
       } catch (err) {
         showToast('Gagal menyimpan konfigurasi remote: ' + err.message, 'error');
+      }
+    });
+  }
+
+  // Buat Folder Baru & Simpan Langsung ke Docker File Browser (http://10.227.241.211:8080)
+  if (btnUploadDirectFilebrowser) {
+    btnUploadDirectFilebrowser.addEventListener('click', async () => {
+      const remoteUrl = (cfgRemoteUrl ? cfgRemoteUrl.value.trim() : 'http://10.227.241.211:8080').replace(/\/+$/, '');
+      const user = cfgRemoteUser ? cfgRemoteUser.value.trim() : 'admin';
+      const pass = cfgRemotePass ? cfgRemotePass.value.trim() : '';
+      const folderRaw = (cfgRemoteFolder ? cfgRemoteFolder.value.trim() : 'barcode-data') || 'barcode-data';
+      const folder = folderRaw.replace(/^\/+/, '').replace(/\/+$/, '');
+
+      if (!remoteUrl || !user || !pass) {
+        showToast('Mohon lengkapi URL, Username, dan Password File Browser.', 'error');
+        return;
+      }
+
+      const origBtnHtml = btnUploadDirectFilebrowser.innerHTML;
+      btnUploadDirectFilebrowser.disabled = true;
+      btnUploadDirectFilebrowser.innerHTML = '⏳ Menghubungkan ke File Browser...';
+
+      try {
+        // 1. Login ke File Browser via POST /api/login
+        const loginResp = await fetch(`${remoteUrl}/api/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: user, password: pass })
+        });
+
+        if (!loginResp.ok) {
+          throw new Error(`Login File Browser gagal (${loginResp.status} ${loginResp.statusText}). Periksa username & password.`);
+        }
+
+        const token = (await loginResp.text()).trim();
+        if (!token) throw new Error('Gagal mendapatkan token autentikasi dari File Browser.');
+
+        btnUploadDirectFilebrowser.innerHTML = `📁 Membuat folder /${folder}...`;
+
+        // 2. Buat folder baru di File Browser via POST /api/resources/{folder}/
+        try {
+          await fetch(`${remoteUrl}/api/resources/${folder}/?override=false`, {
+            method: 'POST',
+            headers: { 'X-Auth': token }
+          });
+        } catch (e) {
+          // Abaikan jika folder sudah ada (409)
+        }
+
+        btnUploadDirectFilebrowser.innerHTML = `⬆️ Menyimpan data ke /${folder}/barcodes.json...`;
+
+        // 3. Siapkan konten database JSON
+        const dbPayload = {
+          items: generatedItems,
+          folders: batches.map(b => b.name).filter(Boolean),
+          totalItems: generatedItems.length,
+          uploadedAt: new Date().toISOString()
+        };
+        const dbBlob = new Blob([JSON.stringify(dbPayload, null, 2)], { type: 'application/json' });
+
+        // 4. Upload file barcodes.json ke folder baru
+        const uploadResp = await fetch(`${remoteUrl}/api/resources/${folder}/barcodes.json?override=true`, {
+          method: 'POST',
+          headers: { 'X-Auth': token },
+          body: dbBlob
+        });
+
+        if (!uploadResp.ok) {
+          throw new Error(`Gagal mengunggah file ke /${folder}/barcodes.json (${uploadResp.status})`);
+        }
+
+        // 5. Berhasil! Beri feedback
+        if (remoteConnStatusTag) {
+          remoteConnStatusTag.textContent = `Tersimpan di /${folder}`;
+          remoteConnStatusTag.className = 'text-[9px] px-1.5 py-0.5 rounded font-mono font-bold bg-emerald-200 text-emerald-900';
+        }
+
+        showToast(`✅ Berhasil! Folder /${folder} telah dibuat & ${generatedItems.length} barcode tersimpan di File Browser!`, 'success');
+      } catch (err) {
+        console.error('FileBrowser Direct Upload Error:', err);
+        showToast('Gagal simpan ke File Browser: ' + err.message, 'error');
+      } finally {
+        btnUploadDirectFilebrowser.disabled = false;
+        btnUploadDirectFilebrowser.innerHTML = origBtnHtml;
       }
     });
   }
