@@ -476,6 +476,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!Array.isArray(item.extraRows)) {
           item.extraRows = [];
         }
+        if ((!item.labelLines || !item.labelLines.length) && item.label && item.label.includes('\n')) {
+          item.labelLines = item.label.split('\n').filter(Boolean);
+          needsItemSave = true;
+        }
       });
       if (needsBatchSave) {
         saveBatchesToStorage();
@@ -841,24 +845,28 @@ document.addEventListener('DOMContentLoaded', () => {
     const brand = getGoldBrand();
     const rowBuckets = [[], [], [], [], [], []]; // Baris 1 s/d 6
 
-    if (brand) {
-      rowBuckets[0].push(brand);
-    }
+    let brandAlreadyInColumns = false;
 
     if (Array.isArray(excelColumnConfigs) && excelColumnConfigs.length > 0) {
       excelColumnConfigs.forEach(cfg => {
         if (cfg.colIdx === excelBarcodeColIdx) return;
         if (cfg.enabled && cfg.targetRow >= 1 && cfg.targetRow <= 6) {
           const raw = row[cfg.colIdx] !== undefined ? row[cfg.colIdx] : '';
-          const val = normalizeExcelCellValue(raw, cfg.colName);
+          const colName = cfg.name || cfg.colName || '';
+          const val = normalizeExcelCellValue(raw, colName);
           if (val) {
-            const bucket = rowBuckets[cfg.targetRow - 1];
-            if (!bucket.includes(val)) {
-              bucket.push(val);
+            if (brand && (val.toLowerCase() === brand.toLowerCase() || val === 'Hartadinata' || val === 'Antam')) {
+              brandAlreadyInColumns = true;
             }
+            rowBuckets[cfg.targetRow - 1].push(val);
           }
         }
       });
+    }
+
+    // Jika brand aktif dari radio selector dan BELUM ada di kolom Excel, sisipkan di Baris 1
+    if (brand && !brandAlreadyInColumns) {
+      rowBuckets[0].unshift(brand);
     }
 
     const labelLines = rowBuckets
@@ -1010,6 +1018,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return {
         colIdx: idx,
         name: h,
+        colName: h,
         sampleVal: sample,
         enabled: enabled,
         targetRow: targetRow
@@ -1280,7 +1289,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Gold preset: Gramasi→Row1, rest→Row2
       excelColumnConfigs.forEach(cfg => {
         if (cfg.colIdx === excelBarcodeColIdx) { cfg.enabled = false; return; }
-        const name = (cfg.colName || '').toLowerCase();
+        const name = (cfg.name || cfg.colName || '').toLowerCase();
         if (name.includes('gramasi') || name.includes('gram') || name.includes('weight')) {
           cfg.enabled = true; cfg.targetRow = 1;
         } else if (name.includes('vault') || name.includes('lemari') || name.includes('laci') || name.includes('kotak') ||
@@ -1920,6 +1929,7 @@ document.addEventListener('DOMContentLoaded', () => {
         newItems = customExcelItemsToGenerate.map(it => ({
           id: it.id,
           label: it.label || defaultLabel,
+          labelLines: Array.isArray(it.labelLines) ? [...it.labelLines] : (it.label ? it.label.split('\n').filter(Boolean) : []),
           brand: it.brand || '',
           gramasi: it.gramasi || '',
           vault: it.vault || '',
@@ -2605,6 +2615,27 @@ document.addEventListener('DOMContentLoaded', () => {
       currentEditingItem.kotak = modalEditKotak.value.trim();
       currentEditingItem.status = modalEditStatus.value;
       currentEditingItem.extraRows = modalExtraRows.filter(r => r.key.trim() || r.value.trim());
+
+      // Rekonstruksi labelLines dan label teks agar perubahan detail tersinkronisasi
+      const updatedLines = [];
+      const editBrand = currentEditingItem.brand;
+      const editGram = currentEditingItem.gramasi;
+      if (editBrand || editGram) {
+        updatedLines.push([editBrand, editGram].filter(Boolean).join(' - '));
+      }
+      const editLoc = [currentEditingItem.vault, currentEditingItem.lemari, currentEditingItem.laci, currentEditingItem.kotak].filter(Boolean);
+      if (editLoc.length > 0) {
+        updatedLines.push(editLoc.join(' - '));
+      }
+      currentEditingItem.extraRows.forEach(r => {
+        const k = (r.key || '').trim();
+        const v = (r.value || '').trim();
+        if (k && v) updatedLines.push(`${k}: ${v}`);
+        else if (v) updatedLines.push(v);
+        else if (k) updatedLines.push(k);
+      });
+      currentEditingItem.labelLines = updatedLines.slice(0, 6);
+      currentEditingItem.label = updatedLines.join('\n');
 
       const newBatchName = modalEditBatch.value.trim();
       if (newBatchName && newBatchName !== currentEditingItem.batchName) {

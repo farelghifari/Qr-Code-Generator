@@ -469,6 +469,27 @@ assert.strictEqual(typeof BarcodeExporter.downloadFullSheetPDF, 'function', 'dow
 assert.strictEqual(typeof BarcodeExporter.renderSheetToCanvas, 'function', 'renderSheetToCanvas harus terdefinisi');
 console.log('✅ Modul Ekspor PDF & Full Sheet Canvas LULUS.');
 
-console.log('\n🎉 SEMUA 26 PENGUJIAN VERIFIKASI BERHASIL 100%!');
+// Test 27: Preservasi Detail Label (labelLines 6 baris & multiline fallback)
+console.log('27. Menguji Preservasi Detail Label (labelLines & 6 baris custom)...');
+const svgDirectLines = BarcodeEngine.renderQRCodeToSVG('ID-DETAIL-TEST', {
+  labelLines: ['Hartadinata - 1 gr', 'Vault 1 - Lemari 2 - Laci 3', 'Kadar: 99.99%', 'SN: 12345678', 'Ket: Promo', 'Batch: B1']
+});
+assert(svgDirectLines.includes('Hartadinata - 1 gr'), 'SVG harus memuat baris 1');
+assert(svgDirectLines.includes('Vault 1 - Lemari 2 - Laci 3'), 'SVG harus memuat baris 2');
+assert(svgDirectLines.includes('Kadar: 99.99%'), 'SVG harus memuat baris 3');
+assert(svgDirectLines.includes('SN: 12345678'), 'SVG harus memuat baris 4');
+assert(svgDirectLines.includes('Ket: Promo'), 'SVG harus memuat baris 5');
+assert(svgDirectLines.includes('Batch: B1'), 'SVG harus memuat baris 6');
+
+const svgMultiLineFallback = BarcodeEngine.renderQRCodeToSVG('ID-FALLBACK-TEST', {
+  topLabel: 'Antam - 0.5 gr\nRak A - Box 1\nSN: 998877\nKeterangan: Asli'
+});
+assert(svgMultiLineFallback.includes('Antam - 0.5 gr'), 'Fallback harus memuat baris 1');
+assert(svgMultiLineFallback.includes('Rak A - Box 1'), 'Fallback harus memuat baris 2');
+assert(svgMultiLineFallback.includes('SN: 998877'), 'Fallback harus memuat baris 3');
+assert(svgMultiLineFallback.includes('Keterangan: Asli'), 'Fallback harus memuat baris 4');
+console.log('✅ Preservasi Detail Label (6 baris & multiline) LULUS.');
+
+console.log('\n🎉 SEMUA 27 PENGUJIAN VERIFIKASI BERHASIL 100%!');
 
 

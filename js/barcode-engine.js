@@ -246,6 +246,15 @@
       }
     }
 
+    // 2. Jika ada opsi label atau topLabel yang memiliki multi-baris (\n)
+    const rawLabel = String(options.label || options.topLabel || '').trim();
+    if (rawLabel && rawLabel.includes('\n')) {
+      const split = rawLabel.split('\n').map(s => s.trim()).filter(Boolean);
+      if (split.length > 0) {
+        return split.slice(0, 6);
+      }
+    }
+
     const lines = [];
     const brand = String(options.brand || '').trim();
     const gramasi = String(options.gramasi || '').trim();
@@ -278,8 +287,8 @@
       });
     }
 
-    if (lines.length === 0 && options.topLabel) {
-      return splitTopLabel(options.topLabel).slice(0, 6);
+    if (lines.length === 0 && rawLabel) {
+      return splitTopLabel(rawLabel).slice(0, 6);
     }
 
     return lines.slice(0, 6);
