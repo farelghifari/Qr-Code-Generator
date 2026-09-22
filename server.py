@@ -192,9 +192,104 @@ def sync_to_filebrowser():
         print(f"[FileBrowser Sync] ✅ barcodes.json ({count} items) berhasil disimpan ke /{folder}/data/")
 
     except Exception as e:
-        print(f"[FileBrowser Sync] ⚠️ Gagal sync: {e}")
+        print(f"[FileBrowser Sync] ⚠️ Gagal push: {e}")
 
+def pull_from_filebrowser():
+    """Tarik barcodes.json DARI Docker FileBrowser ke lokal sebagai sumber data utama."""
+    import urllib.request
+    import urllib.error
 
+    cfg = get_server_config()
+    if cfg.get("syncMode") == "local":
+        return False
+
+    remote_base = cfg.get("remoteUrl", "http://10.227.241.211:8080").rstrip("/")
+    user = cfg.get("remoteUser", "admin")
+    pwd = cfg.get("remotePass", "7GX87ci7WFEknnrJ")
+    folder = cfg.get("remoteFolder", "barcode-generator")
+
+    try:
+        # 1. Login ke FileBrowser
+        login_url = f"{remote_base}/api/login"
+        login_data = json.dumps({"username": user, "password": pwd}).encode('utf-8')
+        login_req = urllib.request.Request(login_url, data=login_data, headers={"Content-Type": "application/json"}, method="POST")
+        with urllib.request.urlopen(login_req, timeout=5) as resp:
+            token = resp.read().decode('utf-8').strip()
+
+        if not token:
+            print("[FileBrowser Pull] Login gagal")
+            return False
+
+        # 2. Download barcodes.json dari FileBrowser
+        dl_url = f"{remote_base}/api/raw/{folder}/data/barcodes.json"
+        dl_req = urllib.request.Request(dl_url, headers={"X-Auth": token}, method="GET")
+        with urllib.request.urlopen(dl_req, timeout=10) as resp:
+            remote_data = resp.read()
+
+        # 3. Parse dan validasi
+        remote_db = json.loads(remote_data.decode('utf-8'))
+        if not isinstance(remote_db, dict) or "items" not in remote_db:
+            print("[FileBrowser Pull] Data tidak valid, skip")
+            return False
+
+        remote_items = remote_db.get("items", [])
+        remote_folders = remote_db.get("folders", ["Default"])
+
+        # 4. Merge dengan data lokal (remote = prioritas, lokal = fallback)
+        local_db = get_barcodes_db()
+        local_items = {it.get("id"): it for it in local_db.get("items", []) if it.get("id")}
+
+        # Remote items sebagai basis, tambahkan lokal yang belum ada di remote
+        merged_map = {}
+        for item in remote_items:
+            iid = item.get("id")
+            if iid:
+                merged_map[iid] = item
+
+        for iid, item in local_items.items():
+            if iid not in merged_map:
+                merged_map[iid] = item
+            else:
+                # Preserve printed status dari mana pun
+                remote_it = merged_map[iid]
+                if item.get("status") == "printed" or remote_it.get("status") == "printed":
+                    remote_it["status"] = "printed"
+                    remote_it["printedAt"] = remote_it.get("printedAt") or item.get("printedAt")
+
+        # Merge folders
+        merged_folders = list(remote_folders)
+        for f in local_db.get("folders", []):
+            if f and f not in merged_folders:
+                merged_folders.append(f)
+
+        # 5. Simpan ke lokal (TANPA trigger push balik, hindari loop)
+        os.makedirs(DATA_DIR, exist_ok=True)
+        import datetime
+        merged_db = {
+            "items": list(merged_map.values()),
+            "folders": merged_folders,
+            "updatedAt": datetime.datetime.now().isoformat()
+        }
+        with open(DATA_FILE, 'w', encoding='utf-8') as f:
+            json.dump(merged_db, f, ensure_ascii=False, indent=2)
+
+        count = len(merged_db["items"])
+        print(f"[FileBrowser Pull] ✅ Berhasil tarik {count} barcode dari Docker /{folder}/data/barcodes.json")
+        return True
+
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            print(f"[FileBrowser Pull] File belum ada di Docker (404), skip")
+        else:
+            print(f"[FileBrowser Pull] ⚠️ HTTP Error: {e}")
+        return False
+    except Exception as e:
+        print(f"[FileBrowser Pull] ⚠️ Gagal pull: {e}")
+        return False
+
+# === Auto-pull dari Docker saat server startup ===
+print("[Startup] Menarik data terbaru dari Docker FileBrowser...")
+pull_from_filebrowser()
 class CustomHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=DIRECTORY, **kwargs)
@@ -494,7 +589,27 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
+        # Endpoint: Tarik data terbaru dari Docker FileBrowser
+        if self.path == '/api/pull-from-docker':
+            success = pull_from_filebrowser()
+            db = get_barcodes_db()
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate')
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "success": True,
+                "pulled": success,
+                "items": db.get("items", []),
+                "folders": db.get("folders", ["Default"]),
+                "updatedAt": db.get("updatedAt")
+            }).encode('utf-8'))
+            return
+
         if self.path == '/api/barcodes' or self.path.startswith('/api/barcodes?'):
+            # Setiap kali frontend minta data, tarik dulu dari Docker (background, non-blocking untuk request pertama)
+            pull_from_filebrowser()
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
             self.send_header('Access-Control-Allow-Origin', '*')
