@@ -397,6 +397,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const dockerModalTotalFolders = document.getElementById('docker-modal-total-folders');
   const dockerModalFileSize = document.getElementById('docker-modal-file-size');
   const dockerModalHostPath = document.getElementById('docker-modal-host-path');
+  const remoteConnStatusTag = document.getElementById('remote-conn-status-tag');
+  const cfgRemoteUrl = document.getElementById('cfg-remote-url');
+  const cfgRemoteUser = document.getElementById('cfg-remote-user');
+  const cfgRemotePass = document.getElementById('cfg-remote-pass');
+  const btnSaveRemoteConfig = document.getElementById('btn-save-remote-config');
+  const btnResetToLocalDb = document.getElementById('btn-reset-to-local-db');
+  const btnModalClearAllData = document.getElementById('btn-modal-clear-all-data');
 
   const loadingOverlay = document.getElementById('loading-overlay');
   const loadingText = document.getElementById('loading-text');
@@ -2960,6 +2967,133 @@ document.addEventListener('DOMContentLoaded', () => {
     btnRefreshDockerModal.addEventListener('click', () => {
       syncWithServer(false);
       updateDockerModalStatus();
+    });
+  }
+
+  // Load Remote Config dari Server / LocalStorage
+  async function loadRemoteConfig() {
+    try {
+      const resp = await fetch('/api/remote/config');
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data && data.config) {
+          if (cfgRemoteUrl && data.config.remoteUrl) cfgRemoteUrl.value = data.config.remoteUrl;
+          if (cfgRemoteUser && data.config.remoteUser) cfgRemoteUser.value = data.config.remoteUser;
+          if (cfgRemotePass && data.config.remotePass) cfgRemotePass.value = data.config.remotePass;
+          if (remoteConnStatusTag) {
+            remoteConnStatusTag.textContent = data.config.syncMode === 'remote' ? 'Remote Aktif' : 'Lokal';
+            remoteConnStatusTag.className = 'text-[9px] px-1.5 py-0.5 rounded font-mono font-bold ' + 
+              (data.config.syncMode === 'remote' ? 'bg-emerald-200 text-emerald-900' : 'bg-indigo-200 text-indigo-900');
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Gagal memuat remote config:', e);
+    }
+  }
+  loadRemoteConfig();
+
+  // Simpan Konfigurasi Direktori Remote
+  if (btnSaveRemoteConfig) {
+    btnSaveRemoteConfig.addEventListener('click', async () => {
+      const remoteUrl = cfgRemoteUrl ? cfgRemoteUrl.value.trim() : 'http://10.227.241.211:8080';
+      const remoteUser = cfgRemoteUser ? cfgRemoteUser.value.trim() : 'admin';
+      const remotePass = cfgRemotePass ? cfgRemotePass.value.trim() : '';
+
+      try {
+        const resp = await fetch('/api/remote/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            remoteUrl,
+            remoteUser,
+            remotePass,
+            syncMode: 'remote'
+          })
+        });
+
+        if (remoteConnStatusTag) {
+          remoteConnStatusTag.textContent = 'Remote Aktif';
+          remoteConnStatusTag.className = 'text-[9px] px-1.5 py-0.5 rounded font-mono font-bold bg-emerald-200 text-emerald-900';
+        }
+
+        showToast(`Direktori diubah ke ${remoteUrl}! Sedang sinkronisasi...`, 'success');
+        await syncWithServer(true);
+        updateDockerModalStatus();
+      } catch (err) {
+        showToast('Gagal menyimpan konfigurasi remote: ' + err.message, 'error');
+      }
+    });
+  }
+
+  // Reset ke Server Lokal
+  if (btnResetToLocalDb) {
+    btnResetToLocalDb.addEventListener('click', async () => {
+      try {
+        await fetch('/api/remote/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ syncMode: 'local' })
+        });
+
+        if (remoteConnStatusTag) {
+          remoteConnStatusTag.textContent = 'Lokal';
+          remoteConnStatusTag.className = 'text-[9px] px-1.5 py-0.5 rounded font-mono font-bold bg-indigo-200 text-indigo-900';
+        }
+        showToast('Direktori dikembalikan ke Server Lokal.');
+        updateDockerModalStatus();
+      } catch (err) {
+        showToast('Gagal mereset: ' + err.message, 'error');
+      }
+    });
+  }
+
+  // Hapus Semua Data Lokal & Database (Reset Total)
+  if (btnModalClearAllData) {
+    btnModalClearAllData.addEventListener('click', async () => {
+      if (!confirm('PERINGATAN: Apakah Anda yakin ingin MENGHAPUS SEMUA DATA barcode, riwayat, dan folder yang tersimpan baik di lokal maupun server database? Tindakan ini TIDAK DAPAT DIBATALKAN.')) {
+        return;
+      }
+
+      try {
+        // 1. Bersihkan memory
+        generatedItems = [];
+        batches = [];
+        selectedIds.clear();
+
+        // 2. Bersihkan IdGenerator registry
+        if (IdGenerator && IdGenerator.registry) {
+          IdGenerator.registry.clear();
+          try {
+            localStorage.removeItem('barcode_id_studio_history_v5');
+          } catch (e) {}
+        }
+
+        // 3. Bersihkan LocalStorage
+        try {
+          localStorage.removeItem(ITEMS_STORAGE_KEY);
+          localStorage.removeItem(BATCHES_STORAGE_KEY);
+          ['barcode_studio_items_v1', 'barcode_studio_items_v2', 'barcode_studio_items_v3', 'barcode_studio_items_v4', 'barcode_studio_items_v5',
+           'barcode_studio_batches_v1', 'barcode_studio_batches_v2', 'barcode_studio_batches_v3',
+           'barcode_id_studio_history_v1', 'barcode_id_studio_history_v2', 'barcode_id_studio_history_v3', 'barcode_id_studio_history_v4', 'barcode_id_studio_history_v5'
+          ].forEach(k => {
+            try { localStorage.removeItem(k); } catch (err) {}
+          });
+        } catch (e) {}
+
+        // 4. Request hapus semua data di server database
+        await pushDeleteToServer({ all: true });
+
+        // 5. Update UI
+        renderFolderPills();
+        renderAllViews();
+        updateStats();
+        updateDockerModalStatus();
+
+        showToast('Semua data lokal & database telah berhasil dihapus bersih!', 'success');
+      } catch (err) {
+        showToast('Gagal menghapus beberapa data: ' + err.message, 'error');
+      }
     });
   }
 

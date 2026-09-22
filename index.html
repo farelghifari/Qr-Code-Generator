@@ -1389,6 +1389,40 @@
           </div>
         </div>
 
+        <!-- Remote Sync Server / Direktori Eksternal Configuration -->
+        <div class="p-3 bg-indigo-50/70 border border-indigo-200 rounded-xl space-y-2.5 text-[11px]">
+          <div class="font-bold text-indigo-950 flex items-center justify-between">
+            <span class="flex items-center gap-1.5">
+              <span>🌐</span> Direktori Server Database / Remote API:
+            </span>
+            <span id="remote-conn-status-tag" class="text-[9px] px-1.5 py-0.2 rounded font-mono bg-indigo-200 text-indigo-900 font-bold">Lokal</span>
+          </div>
+          <div class="space-y-1.5">
+            <div>
+              <label class="block text-slate-600 font-medium mb-0.5">URL Direktori Database:</label>
+              <input type="text" id="cfg-remote-url" placeholder="http://10.227.241.211:8080" value="http://10.227.241.211:8080" class="w-full px-2.5 py-1.5 bg-white border border-indigo-200 rounded-lg font-mono text-xs text-indigo-900 outline-none focus:ring-2 focus:ring-indigo-500">
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-slate-600 font-medium mb-0.5">Username:</label>
+                <input type="text" id="cfg-remote-user" placeholder="admin" value="admin" class="w-full px-2 py-1 bg-white border border-indigo-200 rounded text-xs font-mono outline-none">
+              </div>
+              <div>
+                <label class="block text-slate-600 font-medium mb-0.5">Password:</label>
+                <input type="password" id="cfg-remote-pass" placeholder="••••••••" value="7GX87ci7WFEknnrJ" class="w-full px-2 py-1 bg-white border border-indigo-200 rounded text-xs font-mono outline-none">
+              </div>
+            </div>
+            <div class="flex items-center justify-between pt-1">
+              <button type="button" id="btn-save-remote-config" class="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-md text-xs shadow-xs transition">
+                Simpan & Hubungkan
+              </button>
+              <button type="button" id="btn-reset-to-local-db" class="text-indigo-600 hover:underline text-[10px]">
+                Kembali ke Server Lokal
+              </button>
+            </div>
+          </div>
+        </div>
+
         <!-- Action Download Database File -->
         <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 p-3 bg-amber-50/70 border border-amber-200 rounded-xl text-[11px]">
           <div>
@@ -1398,6 +1432,19 @@
           <a href="/api/database/download" download="barcodes_docker_db.json" id="btn-download-db-file" class="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold text-xs shadow-xs text-center flex items-center justify-center gap-1">
             <span>📥</span> Download JSON
           </a>
+        </div>
+
+        <!-- Action Hapus Semua Data Lokal -->
+        <div class="p-3 bg-rose-50/70 border border-rose-200 rounded-xl space-y-1.5 text-[11px]">
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="font-bold text-rose-950">Hapus Semua Data Lokal & Database:</div>
+              <div class="text-rose-700 text-[10px]">Menghapus seluruh riwayat barcode, folder, dan cache dari komputer/server.</div>
+            </div>
+            <button type="button" id="btn-modal-clear-all-data" class="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg text-xs shadow-xs transition shrink-0">
+              🗑️ Hapus Semua
+            </button>
+          </div>
         </div>
       </div>
 

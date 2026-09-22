@@ -54,6 +54,68 @@ CURRENT_PORT = PORT
 
 DATA_DIR = os.path.join(DIRECTORY, 'data')
 DATA_FILE = os.path.join(DATA_DIR, 'barcodes.json')
+CONFIG_FILE = os.path.join(DATA_DIR, 'config.json')
+
+def get_server_config():
+    os.makedirs(DATA_DIR, exist_ok=True)
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+                cfg = json.load(f)
+                if isinstance(cfg, dict):
+                    return cfg
+        except Exception as e:
+            print(f"Error reading {CONFIG_FILE}: {e}")
+    # Default ke http://10.227.241.211:8080 sesuai arahan user
+    return {
+        "remoteUrl": "http://10.227.241.211:8080",
+        "remoteUser": "admin",
+        "remotePass": "7GX87ci7WFEknnrJ",
+        "syncMode": "remote"  # "remote" atau "local"
+    }
+
+def save_server_config(cfg):
+    os.makedirs(DATA_DIR, exist_ok=True)
+    with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+        json.dump(cfg, f, ensure_ascii=False, indent=2)
+
+def forward_to_remote(path, method='GET', data=None, headers=None):
+    """Meneruskan request ke remote server (misal http://10.227.241.211:8080) dengan Basic Auth."""
+    import urllib.request
+    import base64
+
+    cfg = get_server_config()
+    remote_base = cfg.get("remoteUrl", "").rstrip("/")
+    if not remote_base:
+        return None, 500, "Remote URL tidak dikonfigurasi"
+
+    target_url = f"{remote_base}{path}"
+    req = urllib.request.Request(target_url, method=method)
+
+    user = cfg.get("remoteUser", "")
+    pwd = cfg.get("remotePass", "")
+    if user and pwd:
+        auth_str = base64.b64encode(f"{user}:{pwd}".encode('utf-8')).decode('utf-8')
+        req.add_header('Authorization', f'Basic {auth_str}')
+
+    if headers:
+        for k, v in headers.items():
+            if k.lower() not in ['host', 'authorization', 'content-length']:
+                req.add_header(k, v)
+
+    if data is not None:
+        if isinstance(data, str):
+            data = data.encode('utf-8')
+        req.data = data
+        if 'Content-Type' not in req.headers:
+            req.add_header('Content-Type', 'application/json')
+
+    try:
+        with urllib.request.urlopen(req, timeout=4) as resp:
+            body = resp.read()
+            return body, resp.status, resp.headers.get('Content-Type', 'application/json')
+    except Exception as e:
+        return None, 502, str(e)
 
 def get_barcodes_db():
     os.makedirs(DATA_DIR, exist_ok=True)
@@ -314,6 +376,59 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({"success": False, "error": str(err)}).encode('utf-8'))
                 return
 
+        if self.path == '/api/remote/config':
+            try:
+                content_length = int(self.headers.get('Content-Length', 0))
+                body = self.rfile.read(content_length)
+                req_data = json.loads(body.decode('utf-8')) if body else {}
+                cfg = get_server_config()
+                if "remoteUrl" in req_data:
+                    cfg["remoteUrl"] = req_data["remoteUrl"].strip()
+                if "remoteUser" in req_data:
+                    cfg["remoteUser"] = req_data["remoteUser"].strip()
+                if "remotePass" in req_data:
+                    cfg["remotePass"] = req_data["remotePass"].strip()
+                if "syncMode" in req_data:
+                    cfg["syncMode"] = req_data["syncMode"].strip()
+                save_server_config(cfg)
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(json.dumps({"success": True, "config": cfg}).encode('utf-8'))
+                return
+            except Exception as err:
+                self.send_response(500)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(json.dumps({"success": False, "error": str(err)}).encode('utf-8'))
+                return
+
+        if self.path.startswith('/api/remote-proxy'):
+            try:
+                content_length = int(self.headers.get('Content-Length', 0))
+                body = self.rfile.read(content_length) if content_length > 0 else None
+                subpath = self.path[len('/api/remote-proxy'):] or '/'
+                # Teruskan POST ke remote
+                data_resp, status, ctype = forward_to_remote(subpath, method='POST', data=body)
+                self.send_response(status if data_resp is not None else 502)
+                self.send_header('Content-Type', ctype or 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                if data_resp is not None:
+                    self.wfile.write(data_resp)
+                else:
+                    self.wfile.write(json.dumps({"success": False, "error": str(ctype)}).encode('utf-8'))
+                return
+            except Exception as err:
+                self.send_response(500)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(json.dumps({"success": False, "error": str(err)}).encode('utf-8'))
+                return
+
         self.send_response(404)
         self.end_headers()
 
@@ -400,6 +515,30 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
                 "networkUrl": f"http://{current_ip}:{CURRENT_PORT}"
             }
             self.wfile.write(json.dumps(info).encode('utf-8'))
+            return
+
+        if self.path == '/api/remote/config':
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate')
+            self.end_headers()
+            cfg = get_server_config()
+            self.wfile.write(json.dumps({"success": True, "config": cfg}).encode('utf-8'))
+            return
+
+        if self.path.startswith('/api/remote-proxy'):
+            subpath = self.path[len('/api/remote-proxy'):] or '/'
+            data_resp, status, ctype = forward_to_remote(subpath, method='GET')
+            self.send_response(status if data_resp is not None else 502)
+            self.send_header('Content-Type', ctype or 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate')
+            self.end_headers()
+            if data_resp is not None:
+                self.wfile.write(data_resp)
+            else:
+                self.wfile.write(json.dumps({"success": False, "error": str(ctype)}).encode('utf-8'))
             return
 
         super().do_GET()
