@@ -2420,6 +2420,43 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // --- DEVICE ACCESS MODAL (HP / TABLET) ---
+  function renderDeviceModalQR(url) {
+    if (!deviceQrContainer) return;
+    if (typeof qrcode !== 'undefined') {
+      try {
+        const qr = qrcode(0, 'M');
+        qr.addData(url);
+        qr.make();
+        const count = qr.getModuleCount();
+        const cellSize = Math.max(2, Math.floor(150 / count));
+        const canvas = document.createElement('canvas');
+        canvas.width = count * cellSize + 16;
+        canvas.height = count * cellSize + 16;
+        const ctx = canvas.getContext('2d');
+        ctx.imageSmoothingEnabled = false;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#0f172a';
+        for (let r = 0; r < count; r++) {
+          for (let c = 0; c < count; c++) {
+            if (qr.isDark(r, c)) {
+              ctx.fillRect(8 + c * cellSize, 8 + r * cellSize, cellSize, cellSize);
+            }
+          }
+        }
+        canvas.className = 'w-36 h-36 object-contain rounded-lg shadow-2xs';
+        deviceQrContainer.innerHTML = '';
+        deviceQrContainer.appendChild(canvas);
+        return;
+      } catch (e) {
+        console.warn('Gagal render canvas QR lokal:', e);
+      }
+    }
+    if (deviceQrImg) {
+      deviceQrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(url)}`;
+    }
+  }
+
   function openDeviceAccessModal() {
     if (!deviceAccessModal) return;
     deviceAccessModal.classList.remove('hidden');
@@ -2431,14 +2468,16 @@ document.addEventListener('DOMContentLoaded', () => {
       .then(info => {
         if (info && info.networkUrl && networkUrlInput) {
           networkUrlInput.value = info.networkUrl;
-          if (deviceQrImg) {
-            deviceQrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(info.networkUrl)}`;
-          }
+          renderDeviceModalQR(info.networkUrl);
         }
       })
       .catch(err => {
-        if (networkUrlInput && !networkUrlInput.value) {
-          networkUrlInput.value = 'http://10.227.207.226:3001';
+        const fallbackUrl = window.location.origin && !window.location.origin.includes('localhost') 
+          ? window.location.origin 
+          : 'http://10.227.197.221:3001';
+        if (networkUrlInput) {
+          networkUrlInput.value = fallbackUrl;
+          renderDeviceModalQR(fallbackUrl);
         }
       });
   }
@@ -2468,7 +2507,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (deviceQrImg && deviceQrContainer) {
     deviceQrImg.addEventListener('error', () => {
-      const currentUrl = networkUrlInput ? networkUrlInput.value : 'http://10.227.207.226:3001';
+      const currentUrl = networkUrlInput ? networkUrlInput.value : window.location.origin;
       deviceQrContainer.innerHTML = `
         <div class="p-3 text-center">
           <div class="text-3xl mb-1">📱</div>

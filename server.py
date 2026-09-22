@@ -170,11 +170,12 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
             self.send_header('Access-Control-Allow-Origin', '*')
             self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate')
             self.end_headers()
+            current_ip = get_local_ip()
             info = {
-                "localIp": LOCAL_IP,
+                "localIp": current_ip,
                 "port": CURRENT_PORT,
                 "localUrl": f"http://localhost:{CURRENT_PORT}",
-                "networkUrl": f"http://{LOCAL_IP}:{CURRENT_PORT}"
+                "networkUrl": f"http://{current_ip}:{CURRENT_PORT}"
             }
             self.wfile.write(json.dumps(info).encode('utf-8'))
             return
