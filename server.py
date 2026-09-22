@@ -52,6 +52,28 @@ def get_local_ip():
 LOCAL_IP = get_local_ip()
 CURRENT_PORT = PORT
 
+DATA_DIR = os.path.join(DIRECTORY, 'data')
+DATA_FILE = os.path.join(DATA_DIR, 'barcodes.json')
+
+def get_barcodes_db():
+    os.makedirs(DATA_DIR, exist_ok=True)
+    if os.path.exists(DATA_FILE):
+        try:
+            with open(DATA_FILE, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                if isinstance(data, dict):
+                    return data
+        except Exception as e:
+            print(f"Error reading {DATA_FILE}: {e}")
+    return {"items": [], "folders": ["Default"], "updatedAt": None}
+
+def save_barcodes_db(data):
+    os.makedirs(DATA_DIR, exist_ok=True)
+    import datetime
+    data["updatedAt"] = datetime.datetime.now().isoformat()
+    with open(DATA_FILE, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
 class CustomHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=DIRECTORY, **kwargs)
@@ -65,11 +87,143 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
     def do_OPTIONS(self):
         self.send_response(200)
         self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type, X-Filename')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type, X-Filename, X-Requested-With, X-Auth')
         self.end_headers()
 
     def do_POST(self):
+        if self.path == '/api/barcodes':
+            try:
+                content_length = int(self.headers.get('Content-Length', 0))
+                body = self.rfile.read(content_length)
+                req_data = json.loads(body.decode('utf-8')) if body else {}
+                
+                db = get_barcodes_db()
+                existing_items = {it.get("id"): it for it in db.get("items", []) if it.get("id")}
+                existing_folders = list(db.get("folders", ["Default"]))
+                
+                new_items = req_data.get("items", [])
+                new_folders = req_data.get("folders", [])
+                mode = req_data.get("mode", "sync")  # "sync" or "replace"
+                
+                if mode == "replace":
+                    db["items"] = new_items
+                    db["folders"] = new_folders if new_folders else ["Default"]
+                else:
+                    for item in new_items:
+                        item_id = item.get("id")
+                        if not item_id:
+                            continue
+                        if item_id in existing_items:
+                            old = existing_items[item_id]
+                            # Preserve printed status if either is printed
+                            if old.get("status") == "printed" or item.get("status") == "printed":
+                                item["status"] = "printed"
+                                item["printedAt"] = old.get("printedAt") or item.get("printedAt")
+                            old.update(item)
+                        else:
+                            existing_items[item_id] = item
+                    
+                    db["items"] = list(existing_items.values())
+                    for f in new_folders:
+                        if f and f not in existing_folders:
+                            existing_folders.append(f)
+                    db["folders"] = existing_folders
+
+                save_barcodes_db(db)
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(json.dumps({
+                    "success": True,
+                    "count": len(db["items"]),
+                    "items": db["items"],
+                    "folders": db["folders"]
+                }).encode('utf-8'))
+                return
+            except Exception as err:
+                self.send_response(500)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(json.dumps({"success": False, "error": str(err)}).encode('utf-8'))
+                return
+
+        if self.path == '/api/barcodes/status':
+            try:
+                content_length = int(self.headers.get('Content-Length', 0))
+                body = self.rfile.read(content_length)
+                req_data = json.loads(body.decode('utf-8')) if body else {}
+                
+                ids = req_data.get("ids", [])
+                new_status = req_data.get("status", "printed")
+                import datetime
+                now_str = datetime.datetime.now().isoformat()
+                
+                db = get_barcodes_db()
+                id_set = set(ids)
+                updated_count = 0
+                for item in db.get("items", []):
+                    if item.get("id") in id_set:
+                        item["status"] = new_status
+                        item["printedAt"] = now_str if new_status == "printed" else None
+                        updated_count += 1
+                
+                save_barcodes_db(db)
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(json.dumps({
+                    "success": True,
+                    "updated": updated_count,
+                    "status": new_status
+                }).encode('utf-8'))
+                return
+            except Exception as err:
+                self.send_response(500)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(json.dumps({"success": False, "error": str(err)}).encode('utf-8'))
+                return
+
+        if self.path == '/api/barcodes/delete':
+            try:
+                content_length = int(self.headers.get('Content-Length', 0))
+                body = self.rfile.read(content_length)
+                req_data = json.loads(body.decode('utf-8')) if body else {}
+                
+                db = get_barcodes_db()
+                if req_data.get("all"):
+                    db["items"] = []
+                    db["folders"] = ["Default"]
+                elif req_data.get("ids"):
+                    del_set = set(req_data["ids"])
+                    db["items"] = [it for it in db.get("items", []) if it.get("id") not in del_set]
+                elif req_data.get("folder"):
+                    folder_name = req_data["folder"]
+                    db["items"] = [it for it in db.get("items", []) if it.get("batch") != folder_name and it.get("batchName") != folder_name and it.get("batchId") != folder_name]
+                    if folder_name in db.get("folders", []):
+                        db["folders"].remove(folder_name)
+                    if not db["folders"]:
+                        db["folders"] = ["Default"]
+                
+                save_barcodes_db(db)
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(json.dumps({"success": True, "count": len(db["items"])}).encode('utf-8'))
+                return
+            except Exception as err:
+                self.send_response(500)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(json.dumps({"success": False, "error": str(err)}).encode('utf-8'))
+                return
         if self.path == '/api/parse-excel':
             try:
                 content_length = int(self.headers.get('Content-Length', 0))
@@ -164,6 +318,40 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
+        if self.path == '/api/barcodes' or self.path.startswith('/api/barcodes?'):
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate')
+            self.end_headers()
+            db = get_barcodes_db()
+            resp = {
+                "success": True,
+                "items": db.get("items", []),
+                "folders": db.get("folders", ["Default"]),
+                "updatedAt": db.get("updatedAt")
+            }
+            self.wfile.write(json.dumps(resp).encode('utf-8'))
+            return
+
+        if self.path == '/api/barcodes/stats':
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate')
+            self.end_headers()
+            db = get_barcodes_db()
+            items = db.get("items", [])
+            printed = sum(1 for it in items if it.get("status") == "printed")
+            resp = {
+                "success": True,
+                "total": len(items),
+                "printed": printed,
+                "pending": len(items) - printed
+            }
+            self.wfile.write(json.dumps(resp).encode('utf-8'))
+            return
+
         if self.path == '/api/network-info':
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')

@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  barcode-generator:
+    build: .
+    container_name: barcode-generator
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1

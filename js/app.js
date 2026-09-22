@@ -381,6 +381,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const deviceQrImg = document.getElementById('device-qr-img');
   const deviceQrContainer = document.getElementById('device-qr-container');
 
+  // Server / Docker Sync Elements
+  const btnSyncServer = document.getElementById('btn-sync-server');
+  const serverSyncBadge = document.getElementById('server-sync-badge');
+  const syncIndicatorDot = document.getElementById('sync-indicator-dot');
+  const syncStatusText = document.getElementById('sync-status-text');
+
   const loadingOverlay = document.getElementById('loading-overlay');
   const loadingText = document.getElementById('loading-text');
   const toastContainer = document.getElementById('toast-container');
@@ -435,6 +441,187 @@ document.addEventListener('DOMContentLoaded', () => {
       console.warn('Gagal menyimpan items ke localStorage', e);
     }
     saveBatchesToStorage();
+    if (pushDebounceTimer) clearTimeout(pushDebounceTimer);
+    pushDebounceTimer = setTimeout(() => {
+      pushItemsToServer(generatedItems, false);
+    }, 600);
+  }
+
+  // --- SERVER / DOCKER SYNC & PERSISTENCE ---
+  let isSyncing = false;
+  let pushDebounceTimer = null;
+
+  function updateSyncStatusUI(status, label) {
+    if (!serverSyncBadge) return;
+    serverSyncBadge.classList.remove('hidden');
+    if (syncStatusText) syncStatusText.textContent = label || (status === 'synced' ? 'Server: Aktif' : 'Mode Offline');
+    if (syncIndicatorDot) {
+      syncIndicatorDot.className = 'w-2 h-2 rounded-full ' + (
+        status === 'synced' ? 'bg-emerald-500' :
+        status === 'syncing' ? 'bg-amber-500 animate-pulse' :
+        'bg-slate-400'
+      );
+    }
+  }
+
+  async function syncWithServer(showNotice = false) {
+    if (isSyncing) return;
+    isSyncing = true;
+    updateSyncStatusUI('syncing', 'Menyinkronkan...');
+    try {
+      const resp = await fetch('/api/barcodes');
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      if (data && data.success && Array.isArray(data.items)) {
+        const serverItems = data.items;
+        const serverFolders = Array.isArray(data.folders) ? data.folders : [];
+
+        // Gabungkan folders
+        let hasNewFolder = false;
+        serverFolders.forEach(sf => {
+          if (sf && !batches.some(b => b.name === sf || b.id === sf)) {
+            batches.push({
+              id: 'batch_' + Math.random().toString(36).substring(2, 8),
+              name: sf,
+              createdAt: 'Server Sync'
+            });
+            hasNewFolder = true;
+          }
+        });
+
+        // Gabungkan items: server items merged with local items
+        const itemMap = new Map();
+        // Muat item lokal terlebih dahulu
+        generatedItems.forEach(it => {
+          if (it.id) itemMap.set(it.id, it);
+        });
+
+        // Gabungkan data dari server
+        serverItems.forEach(sItem => {
+          if (!sItem.id) return;
+          if (itemMap.has(sItem.id)) {
+            const locItem = itemMap.get(sItem.id);
+            // Pertahankan status printed jika server atau lokal sudah dicetak
+            const isPrinted = locItem.status === 'printed' || sItem.status === 'printed';
+            Object.assign(locItem, {
+              ...sItem,
+              status: isPrinted ? 'printed' : locItem.status,
+              printedAt: isPrinted ? (locItem.printedAt || sItem.printedAt || new Date().toISOString()) : null
+            });
+          } else {
+            itemMap.set(sItem.id, sItem);
+          }
+        });
+
+        generatedItems = Array.from(itemMap.values());
+        try {
+          localStorage.setItem(ITEMS_STORAGE_KEY, JSON.stringify(generatedItems));
+          if (hasNewFolder) localStorage.setItem(BATCHES_STORAGE_KEY, JSON.stringify(batches));
+        } catch (e) {}
+
+        // Bila ada item lokal yang belum ada di server, push ke server
+        const localOnly = generatedItems.filter(it => !serverItems.some(si => si.id === it.id));
+        if (localOnly.length > 0) {
+          await pushItemsToServer(generatedItems, false);
+        }
+
+        updateSyncStatusUI('synced', `Server: ${generatedItems.length} Data`);
+        renderFolderPills();
+        renderAllViews();
+        updateStats();
+        if (showNotice) {
+          showToast(`Sinkronisasi berhasil! ${generatedItems.length} barcode terhubung dengan Docker/Server.`, 'success');
+        }
+      }
+    } catch (e) {
+      console.warn('Server sync offline:', e);
+      updateSyncStatusUI('offline', 'Mode Offline (Lokal)');
+      if (showNotice) {
+        showToast('Tidak dapat terhubung ke server/Docker (Mode Offline). Data tersimpan lokal di browser.', 'info');
+      }
+    } finally {
+      isSyncing = false;
+    }
+  }
+
+  async function pushItemsToServer(itemsToPush, triggerSyncUi = true) {
+    if (triggerSyncUi) updateSyncStatusUI('syncing', 'Menyimpan ke Server...');
+    try {
+      const folderNames = batches.map(b => b.name).filter(Boolean);
+      const resp = await fetch('/api/barcodes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: itemsToPush || generatedItems,
+          folders: folderNames,
+          mode: 'sync'
+        })
+      });
+      if (resp.ok) {
+        const resData = await resp.json();
+        updateSyncStatusUI('synced', `Server: ${resData.count || (itemsToPush || generatedItems).length} Data`);
+      } else {
+        updateSyncStatusUI('offline', 'Mode Offline (Lokal)');
+      }
+    } catch (e) {
+      console.warn('Gagal push ke server:', e);
+      updateSyncStatusUI('offline', 'Mode Offline (Lokal)');
+    }
+  }
+
+  async function pushStatusToServer(ids, status) {
+    if (!ids || !ids.length) return;
+    try {
+      await fetch('/api/barcodes/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids, status })
+      });
+    } catch (e) {
+      console.warn('Gagal update status di server:', e);
+    }
+  }
+
+  async function pushDeleteToServer(payload) {
+    try {
+      await fetch('/api/barcodes/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+    } catch (e) {
+      console.warn('Gagal push delete ke server:', e);
+    }
+  }
+
+  function toggleItemStatus(id) {
+    const item = generatedItems.find(it => it.id === id);
+    if (!item) return;
+    const newStatus = item.status === 'printed' ? 'pending' : 'printed';
+    item.status = newStatus;
+    item.printedAt = newStatus === 'printed' ? new Date().toISOString() : null;
+
+    saveItemsToStorage();
+    pushStatusToServer([id], newStatus);
+    renderAllViews();
+    updateStats();
+    showToast(`Status ID "${id}" diubah menjadi: ${newStatus === 'printed' ? 'Sudah Dicetak' : 'Belum Dicetak'}`);
+  }
+
+  function deleteSingleItem(id) {
+    const item = generatedItems.find(it => it.id === id);
+    if (!item) return;
+    if (confirm(`Apakah Anda yakin ingin menghapus barcode "${id}"?`)) {
+      generatedItems = generatedItems.filter(it => it.id !== id);
+      selectedIds.delete(id);
+      IdGenerator.registry.historySet.delete(id);
+      IdGenerator.registry.saveToStorage();
+      saveItemsToStorage();
+      pushDeleteToServer({ ids: [id] });
+      renderAllViews();
+      updateStats();
+      showToast(`Barcode "${id}" berhasil dihapus.`);
+    }
   }
 
   function loadItemsFromStorage() {
@@ -491,6 +678,9 @@ document.addEventListener('DOMContentLoaded', () => {
         saveItemsToStorage();
       }
     }
+
+    // Auto-sync dengan server/Docker saat startup
+    syncWithServer(false);
   }
 
   // --- UPDATE BADGES & STATS ---
@@ -842,6 +1032,65 @@ document.addEventListener('DOMContentLoaded', () => {
     updateExcelSample();
   }
 
+  // Ekstraksi 14 Variabel Standar Sesuai Format Tabel Database/Docker
+  function extractStandardExcelFields(row, headers) {
+    if (!row || !headers) return {};
+
+    const findVal = (keywords) => {
+      for (let i = 0; i < headers.length; i++) {
+        const h = String(headers[i] || '').toLowerCase().trim();
+        for (const kw of keywords) {
+          if (h === kw || h.includes(kw)) {
+            const v = row[i] !== undefined && row[i] !== null ? String(row[i]).trim() : '';
+            if (v) return v;
+          }
+        }
+      }
+      return '';
+    };
+
+    const idNumber = findVal(['id number', 'id_number', 'idno', 'nomor id']);
+    const nomorBarcode = findVal(['nomor barcode', 'no barcode', 'barcode number', 'barcode']);
+    const sequenceNumber = findVal(['sequence number', 'seq number', 'sequence', 'no urut', 'seq']);
+    const kode = findVal(['kode', 'code', 'item code', 'kode barang']);
+    const namaCabang = findVal(['nama cabang', 'cabang', 'branch']);
+    const lemariPenyimpanan = findVal(['lemari pe', 'lemari penyimpanan', 'lemari', 'cabinet']);
+    const laciPenyimpanan = findVal(['laci penyimpanan', 'laci', 'drawer']);
+    const kotakPenyimpanan = findVal(['kotak penyimpanan', 'kotak', 'box']);
+    const vault = findVal(['vault', 'brankas']);
+    const nama = findVal(['nama', 'name', 'customer', 'nama nasabah']);
+    const noRekening = findVal(['no rekening', 'nomor rekening', 'no rek', 'rekening', 'account']);
+    const pengirim = findVal(['pengirim', 'sender']);
+    const rawGramasi = findVal(['gramasi', 'berat', 'weight', 'gram']);
+    const gramasi = normalizeExcelCellValue(rawGramasi, 'Gramasi');
+    const keping = findVal(['keping', 'qty', 'jumlah', 'pcs']);
+
+    return {
+      id_number: idNumber,
+      idNumber: idNumber,
+      nomor_barcode: nomorBarcode,
+      nomorBarcode: nomorBarcode,
+      sequence_number: sequenceNumber,
+      sequenceNumber: sequenceNumber,
+      kode: kode,
+      nama_cabang: namaCabang,
+      namaCabang: namaCabang,
+      lemari_penyimpanan: lemariPenyimpanan,
+      lemariPenyimpanan: lemariPenyimpanan,
+      laci_penyimpanan: laciPenyimpanan,
+      laciPenyimpanan: laciPenyimpanan,
+      kotak_penyimpanan: kotakPenyimpanan,
+      kotakPenyimpanan: kotakPenyimpanan,
+      vault: vault,
+      nama: nama,
+      no_rekening: noRekening,
+      noRekening: noRekening,
+      pengirim: pengirim,
+      gramasi: gramasi,
+      keping: keping
+    };
+  }
+
   // Menghasilkan susunan teks baris stiker (maksimal 6 baris) berdasarkan konfigurasi dinamis
   function formatRowFromConfigs(row) {
     if (!row) return { labelLines: [], fullLabel: '' };
@@ -959,6 +1208,9 @@ document.addEventListener('DOMContentLoaded', () => {
       dataRows = excelRawMatrix;
     }
 
+    // 1. Lewati baris yang kosong seluruhnya (skip completely blank rows)
+    dataRows = dataRows.filter(r => Array.isArray(r) && r.some(c => c !== undefined && c !== null && String(c).trim() !== ''));
+
     excelHeaders = headers;
     excelRawRows = dataRows;
 
@@ -970,22 +1222,37 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const sampleRow = dataRows[0] || [];
 
-    // Cari kolom Barcode ID terbaik
-    let bestIdIdx = 0;
+    // Cari kolom Barcode ID terbaik (prioritaskan 'Nomor Barcode', 'Barcode', 'ID Number', 'ID')
+    let bestIdIdx = -1;
     headers.forEach((h, idx) => {
-      const lower = h.toLowerCase();
-      if (lower.includes('id') || lower.includes('barcode') || lower.includes('kode') || lower.includes('pesanan') || lower.includes('order') || lower.includes('sku')) {
-        if (bestIdIdx === 0 || lower.includes('barcode')) {
-          bestIdIdx = idx;
-        }
+      const lower = h.toLowerCase().trim();
+      if (lower === 'nomor barcode' || lower === 'no barcode' || lower === 'barcode number') {
+        bestIdIdx = idx;
+      } else if (bestIdIdx === -1 && (lower.includes('barcode') || lower === 'id number' || lower === 'id_number' || lower === 'id')) {
+        bestIdIdx = idx;
       }
     });
+    if (bestIdIdx === -1) {
+      headers.forEach((h, idx) => {
+        const lower = h.toLowerCase();
+        if (lower.includes('kode') || lower.includes('pesanan') || lower.includes('order') || lower.includes('sku')) {
+          if (bestIdIdx === -1) bestIdIdx = idx;
+        }
+      });
+    }
+    if (bestIdIdx === -1) bestIdIdx = 0;
     excelBarcodeColIdx = bestIdIdx;
 
-    // Populasi Dropdown Kolom Barcode ID
+    // Helper: Periksa apakah sebuah kolom memiliki isi data pada setidaknya 1 baris
+    const colHasData = (idx) => {
+      return dataRows.some(row => row[idx] !== undefined && row[idx] !== null && String(row[idx]).trim() !== '');
+    };
+
+    // Populasi Dropdown Kolom Barcode ID (Hanya kolom yang memiliki data atau kolom ID)
     if (excelColIdSelector) {
       excelColIdSelector.innerHTML = '';
       headers.forEach((h, idx) => {
+        if (!colHasData(idx) && idx !== bestIdIdx) return; // Lewati kolom kosong
         const opt = document.createElement('option');
         opt.value = idx;
         const sample = sampleRow[idx] !== undefined ? String(sampleRow[idx]).trim() : '';
@@ -996,36 +1263,50 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Inisialisasi Konfigurasi Kolom Dinamis (Maksimal 6 Baris Kebawah)
-    excelColumnConfigs = headers.map((h, idx) => {
-      const lower = h.toLowerCase();
-      const sample = sampleRow[idx] !== undefined ? String(sampleRow[idx]).trim() : '';
+    // Lewati kolom yang kosong di data ("gausah di munculin di pengaturan yg di samping. lgsg lewat aja biar hemat step gaperlu nge disable 1 1")
+    excelColumnConfigs = [];
+    headers.forEach((h, idx) => {
       const isIdCol = (idx === bestIdIdx);
+      const hasContent = colHasData(idx);
+
+      // Jika kolom benar-benar kosong di seluruh baris data dan bukan kolom ID, LEWATI - jangan muncul di sidebar!
+      if (!hasContent && !isIdCol) {
+        return;
+      }
+
+      const lower = h.toLowerCase().trim();
+      const sample = sampleRow[idx] !== undefined ? String(sampleRow[idx]).trim() : '';
 
       let targetRow = 0;
       let enabled = false;
 
-      if (!isIdCol) {
+      if (!isIdCol && hasContent) {
         if (lower.includes('gram') || lower.includes('berat') || lower.includes('weight')) {
           targetRow = 1;
           enabled = true;
         } else if (lower.includes('vault') || lower.includes('lemari') || lower.includes('laci') || lower.includes('kotak') || lower.includes('brankas') || lower.includes('rak') || lower.includes('box')) {
           targetRow = 2;
           enabled = true;
+        } else if (lower.includes('cabang') || lower.includes('pengirim') || lower.includes('nama') || lower.includes('customer')) {
+          targetRow = 3;
+          enabled = true;
+        } else if (lower.includes('rekening') || lower.includes('rek') || lower.includes('kode') || lower.includes('keping') || lower.includes('seq')) {
+          targetRow = 4;
+          enabled = true;
         } else {
-          // Kolom lain otomatis aktif di baris 3 s/d 6 jika tersedia
-          targetRow = Math.min(6, Math.max(1, idx));
+          targetRow = Math.min(6, Math.max(1, (excelColumnConfigs.length % 6) + 1));
           enabled = true;
         }
       }
 
-      return {
+      excelColumnConfigs.push({
         colIdx: idx,
         name: h,
         colName: h,
         sampleVal: sample,
         enabled: enabled,
         targetRow: targetRow
-      };
+      });
     });
 
     renderExcelColumnMapping();
@@ -1828,24 +2109,26 @@ document.addEventListener('DOMContentLoaded', () => {
               const val = String(row[colIdIdx] !== undefined ? row[colIdIdx] : '').trim();
               if (!val) return;
 
-              if (seenInBatch.has(val)) {
+              // Ekstraksi 14 variabel standar sesuai skema database Docker
+              const standardFields = extractStandardExcelFields(row, excelHeaders);
+              const barcodeId = standardFields.nomorBarcode || standardFields.idNumber || val;
+
+              if (seenInBatch.has(barcodeId)) {
                 duplicateCount++;
                 return;
               }
-              seenInBatch.add(val);
+              seenInBatch.add(barcodeId);
 
               // Build labelLines from dynamic column configs
               const { labelLines, fullLabel } = formatRowFromConfigs(row);
 
-              // Also extract legacy fields for backward compat
               let brandVal = getGoldBrand() || '';
-              let gramasiVal = '';
-              let vaultVal = '';
-              let lemariVal = '';
-              let laciVal = '';
-              let kotakVal = '';
+              let gramasiVal = standardFields.gramasi || '';
+              let vaultVal = standardFields.vault || '';
+              let lemariVal = standardFields.lemariPenyimpanan || '';
+              let laciVal = standardFields.laciPenyimpanan || '';
+              let kotakVal = standardFields.kotakPenyimpanan || '';
 
-              // Try to extract from configs if they match known field names
               if (Array.isArray(excelColumnConfigs)) {
                 excelColumnConfigs.forEach(cfg => {
                   if (!cfg.enabled || cfg.colIdx === colIdIdx) return;
@@ -1862,10 +2145,11 @@ document.addEventListener('DOMContentLoaded', () => {
               }
 
               itemsFromExcel.push({
-                id: val,
+                ...standardFields,
+                id: barcodeId,
                 label: fullLabel,
                 labelLines: labelLines,
-                brand: brandVal,
+                brand: brandVal || standardFields.nama || 'Hartadinata',
                 gramasi: gramasiVal,
                 vault: vaultVal,
                 lemari: lemariVal,
@@ -1929,11 +2213,22 @@ document.addEventListener('DOMContentLoaded', () => {
         hour: '2-digit', minute: '2-digit'
       });
 
-      // Grouping ke dalam Folder / Batch
-      const customBatchName = batchNameInput ? batchNameInput.value.trim() : '';
-      const finalBatchName = customBatchName || `Batch ${nowFormatted}`;
-      let targetBatch = batches.find(b => b.name.toLowerCase() === finalBatchName.toLowerCase());
-      if (!targetBatch) {
+      // Pastikan batch aktif valid
+      let targetBatch = batches.find(b => b.id === activeFolderId);
+      const rawBatchName = batchNameInput ? batchNameInput.value.trim() : '';
+
+      if (rawBatchName) {
+        const finalBatchName = rawBatchName;
+        targetBatch = {
+          id: 'batch_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+          name: finalBatchName,
+          createdAt: nowFormatted,
+          format: chosenFormat
+        };
+        batches.push(targetBatch);
+        saveBatchesToStorage();
+      } else if (!targetBatch || targetBatch.id === 'all') {
+        const finalBatchName = excelCurrentFileName ? `Excel - ${excelCurrentFileName.replace(/\.[^/.]+$/, '')}` : `Batch ${nowFormatted}`;
         targetBatch = {
           id: 'batch_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
           name: finalBatchName,
@@ -1950,20 +2245,22 @@ document.addEventListener('DOMContentLoaded', () => {
       let newItems = [];
       if (currentMode === 'custom' && customExcelItemsToGenerate && customExcelItemsToGenerate.length > 0) {
         newItems = customExcelItemsToGenerate.map(it => ({
+          ...it,
           id: it.id,
           label: it.label || defaultLabel,
           labelLines: Array.isArray(it.labelLines) ? [...it.labelLines] : (it.label ? it.label.split('\n').filter(Boolean) : []),
-          brand: it.brand || '',
+          brand: it.brand || it.nama || '',
           gramasi: it.gramasi || '',
           vault: it.vault || '',
-          lemari: it.lemari || '',
-          laci: it.laci || '',
-          kotak: it.kotak || '',
+          lemari: it.lemari || it.lemariPenyimpanan || '',
+          laci: it.laci || it.laciPenyimpanan || '',
+          kotak: it.kotak || it.kotakPenyimpanan || '',
           extraRows: [...pregenClean],
           batchId: targetBatch.id,
           batchName: targetBatch.name,
           format: chosenFormat,
           status: 'pending',
+          printedAt: null,
           createdAt: nowFormatted,
           timestamp: Date.now()
         }));
@@ -2479,6 +2776,113 @@ document.addEventListener('DOMContentLoaded', () => {
     syncSelectAllState();
   }
 
+  // --- MANAGEMENT TABLE SELECTION & BATCH ACTIONS ---
+  function syncSelectAllState() {
+    if (!tableSelectAll) return;
+    const currentTableItems = getActiveManagementItems();
+    if (!currentTableItems.length) {
+      tableSelectAll.checked = false;
+      tableSelectAll.indeterminate = false;
+      return;
+    }
+    const selectedInTable = currentTableItems.filter(it => selectedIds.has(it.id)).length;
+    if (selectedInTable === 0) {
+      tableSelectAll.checked = false;
+      tableSelectAll.indeterminate = false;
+    } else if (selectedInTable === currentTableItems.length) {
+      tableSelectAll.checked = true;
+      tableSelectAll.indeterminate = false;
+    } else {
+      tableSelectAll.checked = false;
+      tableSelectAll.indeterminate = true;
+    }
+  }
+
+  if (tableSelectAll) {
+    tableSelectAll.addEventListener('change', (e) => {
+      const currentTableItems = getActiveManagementItems();
+      if (e.target.checked) {
+        currentTableItems.forEach(it => selectedIds.add(it.id));
+      } else {
+        currentTableItems.forEach(it => selectedIds.delete(it.id));
+      }
+      renderManagementTable();
+      updateStats();
+    });
+  }
+
+  if (btnBatchMarkPrinted) {
+    btnBatchMarkPrinted.addEventListener('click', () => {
+      if (selectedIds.size === 0) {
+        showToast('Pilih minimal satu barcode di tabel untuk menandai sudah dicetak.', 'info');
+        return;
+      }
+      const ids = Array.from(selectedIds);
+      const nowStr = new Date().toISOString();
+      generatedItems.forEach(item => {
+        if (selectedIds.has(item.id)) {
+          item.status = 'printed';
+          item.printedAt = nowStr;
+        }
+      });
+      saveItemsToStorage();
+      pushStatusToServer(ids, 'printed');
+      renderAllViews();
+      updateStats();
+      showToast(`${ids.length} barcode berhasil ditandai sebagai Sudah Dicetak.`);
+    });
+  }
+
+  if (btnBatchMarkPending) {
+    btnBatchMarkPending.addEventListener('click', () => {
+      if (selectedIds.size === 0) {
+        showToast('Pilih minimal satu barcode di tabel untuk menandai belum dicetak.', 'info');
+        return;
+      }
+      const ids = Array.from(selectedIds);
+      generatedItems.forEach(item => {
+        if (selectedIds.has(item.id)) {
+          item.status = 'pending';
+          item.printedAt = null;
+        }
+      });
+      saveItemsToStorage();
+      pushStatusToServer(ids, 'pending');
+      renderAllViews();
+      updateStats();
+      showToast(`${ids.length} barcode berhasil ditandai sebagai Belum Dicetak.`);
+    });
+  }
+
+  if (btnBatchDelete) {
+    btnBatchDelete.addEventListener('click', () => {
+      if (selectedIds.size === 0) {
+        showToast('Pilih minimal satu barcode di tabel untuk dihapus.', 'info');
+        return;
+      }
+      const count = selectedIds.size;
+      if (confirm(`Apakah Anda yakin ingin menghapus ${count} barcode yang dipilih?`)) {
+        const ids = Array.from(selectedIds);
+        ids.forEach(id => IdGenerator.registry.historySet.delete(id));
+        IdGenerator.registry.saveToStorage();
+
+        generatedItems = generatedItems.filter(item => !selectedIds.has(item.id));
+        selectedIds.clear();
+        saveItemsToStorage();
+        pushDeleteToServer({ ids });
+        renderAllViews();
+        updateStats();
+        showToast(`${count} barcode berhasil dihapus.`);
+      }
+    });
+  }
+
+  if (btnSyncServer) {
+    btnSyncServer.addEventListener('click', () => {
+      syncWithServer(true);
+    });
+  }
+
   // Listener untuk filter folder dan status di tabel management
   if (tableFolderFilter) {
     tableFolderFilter.addEventListener('change', () => {
@@ -2738,11 +3142,13 @@ document.addEventListener('DOMContentLoaded', () => {
       : `Apakah Anda yakin ingin menghapus folder kosong "${targetBatch.name}"?`;
 
     if (confirm(confirmMsg)) {
+      const folderToDelete = targetBatch.name;
       generatedItems = generatedItems.filter(item => (item.batchId || 'default') !== folderId);
       batches = batches.filter(b => b.id !== folderId);
       selectedIds.clear();
       saveItemsToStorage();
       saveBatchesToStorage();
+      pushDeleteToServer({ folder: folderToDelete });
       if (activeFolderId === folderId) {
         activeFolderId = 'all';
       }
@@ -2938,6 +3344,21 @@ document.addEventListener('DOMContentLoaded', () => {
         showBorders,
         `Lembar_${templateName}_Halaman_${sheetIndex + 1}.png`
       );
+
+      // Tandai barcode pada sheet ini sebagai sudah dicetak
+      const start = sheetIndex * sheetCap;
+      const end = Math.min(start + sheetCap, items.length);
+      const sheetItems = items.slice(start, end);
+      const nowStr = new Date().toISOString();
+      sheetItems.forEach(it => {
+        it.status = 'printed';
+        it.printedAt = nowStr;
+      });
+      saveItemsToStorage();
+      pushStatusToServer(sheetItems.map(it => it.id).filter(Boolean), 'printed');
+      renderAllViews();
+      updateStats();
+
       showToast(`Gambar Lembar ${sheetIndex + 1} (${sheetCap} Label) berhasil diunduh!`, 'success');
     } catch (err) {
       console.error('Gagal unduh sheet PNG:', err);
@@ -2971,6 +3392,22 @@ document.addEventListener('DOMContentLoaded', () => {
         sheetIdx,
         showBorders
       );
+
+      // Tandai barcode yang diekspor sebagai sudah dicetak
+      const nowStr = new Date().toISOString();
+      const sheetCap = renderOpts.cols * renderOpts.rows;
+      const printedItems = sheetIdx === 'all'
+        ? items
+        : items.slice(sheetIdx * sheetCap, Math.min((sheetIdx + 1) * sheetCap, items.length));
+      printedItems.forEach(it => {
+        it.status = 'printed';
+        it.printedAt = nowStr;
+      });
+      saveItemsToStorage();
+      pushStatusToServer(printedItems.map(it => it.id).filter(Boolean), 'printed');
+      renderAllViews();
+      updateStats();
+
       showToast(scope === 'all' ? 'Dokumen PDF (Semua Halaman) berhasil diunduh!' : `Dokumen PDF Lembar ${sheetIdx + 1} berhasil diunduh!`, 'success');
     } catch (err) {
       console.error('Gagal unduh PDF:', err);
@@ -3104,6 +3541,17 @@ document.addEventListener('DOMContentLoaded', () => {
         gridEl.appendChild(sheetDiv);
       }
 
+      // Tandai semua item yang dicetak sebagai status 'printed'
+      const itemsToMark = items;
+      const nowStr = new Date().toISOString();
+      itemsToMark.forEach(it => {
+        it.status = 'printed';
+        it.printedAt = nowStr;
+      });
+      saveItemsToStorage();
+      pushStatusToServer(itemsToMark.map(it => it.id).filter(Boolean), 'printed');
+      updateStats();
+
       setTimeout(() => {
         window.print();
         // Restore original grid after print
@@ -3112,6 +3560,19 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 500);
       }, 300);
     } else {
+      // Tandai item di grid aktif saat ini sebagai 'printed'
+      const itemsToMark = getActiveGridItems();
+      if (itemsToMark.length) {
+        const nowStr = new Date().toISOString();
+        itemsToMark.forEach(it => {
+          it.status = 'printed';
+          it.printedAt = nowStr;
+        });
+        saveItemsToStorage();
+        pushStatusToServer(itemsToMark.map(it => it.id).filter(Boolean), 'printed');
+        updateStats();
+      }
+
       setTimeout(() => {
         window.print();
       }, 200);
@@ -3152,9 +3613,12 @@ document.addEventListener('DOMContentLoaded', () => {
         generatedItems = [];
         selectedIds.clear();
         saveItemsToStorage();
+        pushDeleteToServer({ all: true });
         seqStart.value = 1;
         updateModePreviews();
+        renderFolderPills();
         renderAllViews();
+        updateStats();
         showToast('Semua barcode dan riwayat telah dihapus! Halaman kembali bersih.', 'success');
       }
     });

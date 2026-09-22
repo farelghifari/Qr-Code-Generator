@@ -515,9 +515,162 @@ const exportSvg = BarcodeEngine.renderQRCodeToSVG('TEST-ORD-123456789', {
 // Verify font sizes scaled proportionally with height (213 / 108 ≈ 1.97)
 assert(previewSvg.includes('font-size="12"'), 'Preview font-size title harus 12px');
 assert(exportSvg.includes('font-size="24"'), '300 DPI font-size title harus diskalakan ~24px');
-console.log('✅ Skalabilitas Proporsional Resolusi (Pratinjau vs Ekspor 300 DPI) LULUS.');
+// Test 29: Excel 14 Standard Variables Extraction
+console.log('29. Menguji Ekstraksi 14 Variabel Standar Excel (ID Number s/d Keping)...');
+function extractStandardExcelFields(row, headers) {
+  const normalizeExcelVal = (val, colName) => {
+    let s = String(val || '').trim();
+    if (!s) return '';
+    if (s.toLowerCase().includes('hartadinata')) return 'Hartadinata';
+    if (s.toLowerCase().includes('antam')) return 'Antam';
+    const cLower = (colName || '').toLowerCase();
+    if (cLower.includes('gram') || cLower.includes('berat') || cLower.includes('weight')) {
+      if (/^\d+(\.\d+)?$/.test(s)) return `${s} gr`;
+      if (/^\d+(\.\d+)?\s*gram$/i.test(s)) return s.replace(/\s*gram$/i, ' gr');
+      if (/^\d+(\.\d+)?\s*g$/i.test(s)) return s.replace(/\s*g$/i, ' gr');
+    }
+    return s;
+  };
 
-console.log('\n🎉 SEMUA 28 PENGUJIAN VERIFIKASI BERHASIL 100%!');
+  const fields = {
+    id_number: '', nomor_barcode: '', sequence_number: '', kode: '',
+    nama_cabang: '', lemari_penyimpanan: '', laci_penyimpanan: '',
+    kotak_penyimpanan: '', vault: '', nama: '', no_rekening: '',
+    pengirim: '', gramasi: '', keping: ''
+  };
+
+  headers.forEach((h, idx) => {
+    const headerLower = String(h || '').trim().toLowerCase().replace(/[\s_-]+/g, '');
+    const rawVal = row[idx] !== undefined && row[idx] !== null ? String(row[idx]).trim() : '';
+    const val = normalizeExcelVal(rawVal, h);
+
+    if (headerLower.includes('idnumber') || headerLower === 'id' || headerLower === 'nomorid') {
+      fields.id_number = val;
+    } else if (headerLower.includes('nomorbarcode') || headerLower.includes('barcode') || headerLower === 'nobarcode') {
+      fields.nomor_barcode = val;
+    } else if (headerLower.includes('sequencenumber') || headerLower.includes('seqnum') || headerLower === 'seq' || headerLower === 'sequence') {
+      fields.sequence_number = val;
+    } else if (headerLower === 'kode' || headerLower.includes('kodebarang') || headerLower.includes('itemcode')) {
+      fields.kode = val;
+    } else if (headerLower.includes('namacabang') || headerLower.includes('cabang') || headerLower.includes('branch')) {
+      fields.nama_cabang = val;
+    } else if (headerLower.includes('lemaripenyimpanan') || headerLower.includes('lemari') || headerLower.includes('cupboard') || headerLower.includes('wardrobe')) {
+      fields.lemari_penyimpanan = val;
+    } else if (headerLower.includes('lacipenyimpanan') || headerLower.includes('laci') || headerLower.includes('drawer')) {
+      fields.laci_penyimpanan = val;
+    } else if (headerLower.includes('kotakpenyimpanan') || headerLower.includes('kotak') || headerLower.includes('box')) {
+      fields.kotak_penyimpanan = val;
+    } else if (headerLower.includes('vault') || headerLower.includes('brankas') || headerLower.includes('safe')) {
+      fields.vault = val;
+    } else if (headerLower === 'nama' || headerLower.includes('namapelanggan') || headerLower.includes('customer') || headerLower.includes('pemilik')) {
+      fields.nama = val;
+    } else if (headerLower.includes('norekening') || headerLower.includes('rekening') || headerLower.includes('norek') || headerLower.includes('accountno')) {
+      fields.no_rekening = val;
+    } else if (headerLower.includes('pengirim') || headerLower.includes('sender') || headerLower.includes('supplier')) {
+      fields.pengirim = val;
+    } else if (headerLower.includes('gramasi') || headerLower.includes('berat') || headerLower.includes('weight') || headerLower === 'gr') {
+      fields.gramasi = val;
+    } else if (headerLower.includes('keping') || headerLower.includes('qty') || headerLower.includes('jumlah') || headerLower.includes('pieces') || headerLower.includes('pcs')) {
+      fields.keping = val;
+    }
+  });
+
+  return fields;
+}
+
+const mockHeaders = [
+  'ID Number', 'Nomor Barcode', 'Sequence Number', 'Kode', 'Nama Cabang',
+  'Lemari Penyimpanan', 'Laci Penyimpanan', 'Kotak Penyimpanan', 'Vault',
+  'Nama', 'No Rekening', 'Pengirim', 'Gramasi', 'Keping'
+];
+const mockRow = [
+  'ID-9901', 'BC-8822001', '001', 'KD-LM', 'Cabang Bandung',
+  'Lemari A', 'Laci 2', 'Kotak 05', 'Vault Utama',
+  'Budi Santoso', '123-456-7890', 'Hartadinata Abadi Shop', '5', '1'
+];
+
+const extracted = extractStandardExcelFields(mockRow, mockHeaders);
+assert.strictEqual(extracted.id_number, 'ID-9901');
+assert.strictEqual(extracted.nomor_barcode, 'BC-8822001');
+assert.strictEqual(extracted.sequence_number, '001');
+assert.strictEqual(extracted.kode, 'KD-LM');
+assert.strictEqual(extracted.nama_cabang, 'Cabang Bandung');
+assert.strictEqual(extracted.lemari_penyimpanan, 'Lemari A');
+assert.strictEqual(extracted.laci_penyimpanan, 'Laci 2');
+assert.strictEqual(extracted.kotak_penyimpanan, 'Kotak 05');
+assert.strictEqual(extracted.vault, 'Vault Utama');
+assert.strictEqual(extracted.nama, 'Budi Santoso');
+assert.strictEqual(extracted.no_rekening, '123-456-7890');
+assert.strictEqual(extracted.pengirim, 'Hartadinata', 'Pengirim harus dinormalisasi menjadi Hartadinata');
+assert.strictEqual(extracted.gramasi, '5 gr', 'Gramasi harus otomatis berakhiran gr');
+assert.strictEqual(extracted.keping, '1');
+console.log('✅ Ekstraksi 14 Variabel Standar Excel LULUS (Semua 14 field cocok).');
+
+// Test 30: Skipping Empty Rows and Blank Columns
+console.log('30. Menguji Filter Baris Kosong & Omit Kolom Tanpa Data dari Pengaturan Sidebar...');
+const sampleRowsWithEmpty = [
+  ['ID-1', 'BC-1', '', '', 'Antam Bandung', '1 gr'],
+  ['', '', '', '', '', ''], // Completely empty row
+  ['   ', null, undefined, '', '', '   '], // Whitespace-only row
+  ['ID-2', 'BC-2', '', '', 'Hartadinata Shop', '2 gr']
+];
+const rawSampleHeaders = ['ID Number', 'Nomor Barcode', 'Kolom Kosong 1', 'Kolom Kosong 2', 'Cabang', 'Gramasi'];
+
+// 1. Skip completely empty rows
+const filteredRows = sampleRowsWithEmpty.filter(r => r.some(c => c !== undefined && c !== null && String(c).trim() !== ''));
+assert.strictEqual(filteredRows.length, 2, 'Harus tersisa tepat 2 baris yang memiliki data');
+
+// 2. Detect column has data
+const colHasData = (colIdx) => filteredRows.some(row => row[colIdx] !== undefined && row[colIdx] !== null && String(row[colIdx]).trim() !== '');
+assert.strictEqual(colHasData(0), true, 'Kolom 0 (ID) memiliki data');
+assert.strictEqual(colHasData(1), true, 'Kolom 1 (Barcode) memiliki data');
+assert.strictEqual(colHasData(2), false, 'Kolom 2 (Kosong 1) tidak memiliki data');
+assert.strictEqual(colHasData(3), false, 'Kolom 3 (Kosong 2) tidak memiliki data');
+assert.strictEqual(colHasData(4), true, 'Kolom 4 (Cabang) memiliki data');
+assert.strictEqual(colHasData(5), true, 'Kolom 5 (Gramasi) memiliki data');
+
+// 3. Omitting blank columns from settings
+const sidebarConfigs = [];
+rawSampleHeaders.forEach((h, idx) => {
+  if (colHasData(idx)) {
+    sidebarConfigs.push({ index: idx, name: h });
+  }
+});
+assert.strictEqual(sidebarConfigs.length, 4, 'Hanya 4 kolom yang memiliki data yang masuk ke sidebar');
+assert(!sidebarConfigs.some(c => c.name.includes('Kolom Kosong')), 'Kolom kosong tidak boleh muncul di sidebar settings');
+console.log('✅ Filter Baris Kosong & Omit Kolom Blank LULUS.');
+
+// Test 31: Multi-Device Sync Merge & Printed Status Preservation
+console.log('31. Menguji Multi-Device Merge Status Sync (Preservasi status printed)...');
+const existingServerItem = {
+  id: 'BC-8822001',
+  status: 'printed',
+  printedAt: '2026-09-22T10:00:00Z',
+  pengirim: 'Hartadinata'
+};
+const clientUpdatedItem = {
+  id: 'BC-8822001',
+  status: 'pending', // Device B had older pending status
+  printedAt: null,
+  pengirim: 'Hartadinata'
+};
+
+// Simulation of server merge logic
+function mergeBarcodeItems(existing, incoming) {
+  const merged = { ...existing, ...incoming };
+  if (existing.status === 'printed' || incoming.status === 'printed') {
+    merged.status = 'printed';
+    merged.printedAt = existing.printedAt || incoming.printedAt || new Date().toISOString();
+  }
+  return merged;
+}
+const mergedItem = mergeBarcodeItems(existingServerItem, clientUpdatedItem);
+assert.strictEqual(mergedItem.status, 'printed', 'Status harus tetap printed saat digabung dengan device lain');
+assert.strictEqual(mergedItem.printedAt, '2026-09-22T10:00:00Z', 'Timestamp printedAt harus dipreservasi');
+console.log('✅ Multi-Device Merge Status Sync LULUS.');
+
+console.log('\n🎉 SEMUA 31 PENGUJIAN VERIFIKASI BERHASIL 100%!');
+
 
 
 
