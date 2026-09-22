@@ -135,6 +135,65 @@ def save_barcodes_db(data):
     data["updatedAt"] = datetime.datetime.now().isoformat()
     with open(DATA_FILE, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
+    # Auto-sync ke Docker FileBrowser di background thread
+    import threading
+    threading.Thread(target=sync_to_filebrowser, daemon=True).start()
+
+def sync_to_filebrowser():
+    """Upload barcodes.json ke Docker FileBrowser secara otomatis (background)."""
+    import urllib.request
+    import urllib.error
+    import base64
+
+    cfg = get_server_config()
+    if cfg.get("syncMode") == "local":
+        return  # Skip jika mode lokal
+
+    remote_base = cfg.get("remoteUrl", "http://10.227.241.211:8080").rstrip("/")
+    user = cfg.get("remoteUser", "admin")
+    pwd = cfg.get("remotePass", "7GX87ci7WFEknnrJ")
+    folder = cfg.get("remoteFolder", "barcode-generator")
+
+    try:
+        # 1. Login ke FileBrowser → dapatkan JWT token
+        login_url = f"{remote_base}/api/login"
+        login_data = json.dumps({"username": user, "password": pwd}).encode('utf-8')
+        login_req = urllib.request.Request(login_url, data=login_data, headers={"Content-Type": "application/json"}, method="POST")
+        with urllib.request.urlopen(login_req, timeout=5) as resp:
+            token = resp.read().decode('utf-8').strip()
+
+        if not token:
+            print("[FileBrowser Sync] Login gagal: token kosong")
+            return
+
+        # 2. Pastikan folder /barcode-generator/data/ ada
+        try:
+            dir_url = f"{remote_base}/api/resources/{folder}/data/?override=false"
+            dir_req = urllib.request.Request(dir_url, headers={"X-Auth": token}, method="POST")
+            urllib.request.urlopen(dir_req, timeout=5)
+        except urllib.error.HTTPError:
+            pass  # 409 = sudah ada, OK
+        except Exception:
+            pass
+
+        # 3. Baca & upload barcodes.json
+        if not os.path.exists(DATA_FILE):
+            return
+
+        with open(DATA_FILE, 'rb') as f:
+            file_data = f.read()
+
+        upload_url = f"{remote_base}/api/resources/{folder}/data/barcodes.json?override=true"
+        upload_req = urllib.request.Request(upload_url, data=file_data, headers={"X-Auth": token}, method="POST")
+        urllib.request.urlopen(upload_req, timeout=10)
+
+        db = json.loads(file_data.decode('utf-8'))
+        count = len(db.get("items", []))
+        print(f"[FileBrowser Sync] ✅ barcodes.json ({count} items) berhasil disimpan ke /{folder}/data/")
+
+    except Exception as e:
+        print(f"[FileBrowser Sync] ⚠️ Gagal sync: {e}")
+
 
 class CustomHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
@@ -388,6 +447,8 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
                     cfg["remoteUser"] = req_data["remoteUser"].strip()
                 if "remotePass" in req_data:
                     cfg["remotePass"] = req_data["remotePass"].strip()
+                if "remoteFolder" in req_data:
+                    cfg["remoteFolder"] = req_data["remoteFolder"].strip()
                 if "syncMode" in req_data:
                     cfg["syncMode"] = req_data["syncMode"].strip()
                 save_server_config(cfg)
