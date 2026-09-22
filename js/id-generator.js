@@ -22,14 +22,18 @@
   class UniqueIdRegistry {
     constructor() {
       this.historySet = new Set();
-      this.storageKey = 'barcode_id_studio_history_v3';
-      // Bersihkan riwayat lama jika ada
+      this.storageKey = 'barcode_id_studio_history_v5';
+      // Bersihkan riwayat lama jika ada agar bersih 0 ID
       try {
         if (typeof localStorage !== 'undefined') {
           localStorage.removeItem('barcode_id_studio_history_v1');
           localStorage.removeItem('barcode_id_studio_history_v2');
+          localStorage.removeItem('barcode_id_studio_history_v3');
+          localStorage.removeItem('barcode_id_studio_history_v4');
           localStorage.removeItem('barcode_studio_items_v1');
           localStorage.removeItem('barcode_studio_items_v2');
+          localStorage.removeItem('barcode_studio_items_v3');
+          localStorage.removeItem('barcode_studio_items_v4');
         }
       } catch (e) {}
       this.loadFromStorage();
@@ -322,6 +326,7 @@
 
   return {
     registry: globalRegistry,
+    UniqueIdRegistry,
     generateSequential,
     generateAlphanumeric,
     generateTimestamp,

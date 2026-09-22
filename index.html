@@ -48,10 +48,11 @@
 
     <!-- Top Stats & Quick Actions -->
     <div class="flex items-center gap-2 sm:gap-3 no-print">
-      <div class="hidden sm:flex items-center gap-2 text-xs text-slate-600 bg-white border border-slate-200 px-3 py-1.5 rounded-lg">
-        <span>Total Terdaftar:</span>
-        <span id="registry-count-badge" class="font-bold text-indigo-600">0 ID</span>
-      </div>
+      <button type="button" id="btn-total-registered" class="hidden sm:flex items-center gap-2 text-xs text-slate-700 bg-white hover:bg-indigo-50/70 border border-slate-200 hover:border-indigo-300 px-3 py-1.5 rounded-lg cursor-pointer transition shadow-2xs group" title="Klik untuk melihat rincian tabel semua ID terdaftar">
+        <span class="text-slate-500 group-hover:text-indigo-600 font-medium">Total Terdaftar:</span>
+        <span id="registry-count-badge" class="font-bold text-indigo-600 bg-indigo-50 group-hover:bg-indigo-100 px-1.5 py-0.5 rounded text-[11px]">0 ID</span>
+        <span class="text-[10px] text-slate-400 group-hover:text-indigo-600 font-medium">📋 Rincian &rarr;</span>
+      </button>
       <button id="btn-open-device-access" class="px-3 py-1.5 text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-300 rounded-lg hover:bg-emerald-100 transition shadow-2xs flex items-center gap-1.5" title="Buka website di smartphone / tablet / device lain pada Wi-Fi yang sama">
         <span class="text-sm">📱</span>
         <span>Akses HP</span>
@@ -592,14 +593,50 @@
               <span>Tata Letak Posisi & Ukuran Font:</span>
             </div>
 
-            <!-- Pilihan Posisi Layout -->
-            <div>
-              <label for="layout-position-select" class="block text-slate-600 mb-1 font-medium">Posisi Barcode / QR & Teks Detail</label>
-              <select id="layout-position-select" class="w-full px-2.5 py-1.5 border border-slate-200 rounded-md bg-white focus:ring-2 focus:ring-indigo-500 outline-none text-xs">
-                <option value="side-left" selected>QR/Barcode di Kiri &bull; Teks di Kanan (Landscape Rekomendasi)</option>
-                <option value="side-right">QR/Barcode di Kanan &bull; Teks di Kiri</option>
-                <option value="stacked">QR/Barcode di Atas &bull; Teks di Bawah (Vertikal)</option>
-              </select>
+            <!-- Pilihan Posisi Layout & Ukuran Barcode/QR -->
+            <div class="space-y-2">
+              <div>
+                <label for="layout-position-select" class="block text-slate-600 mb-1 font-medium">Posisi Barcode / QR & Teks Detail</label>
+                <select id="layout-position-select" class="w-full px-2.5 py-1.5 border border-slate-200 rounded-md bg-white focus:ring-2 focus:ring-indigo-500 outline-none text-xs">
+                  <option value="side-left" selected>QR/Barcode di Kiri &bull; Teks di Kanan (Landscape Rekomendasi)</option>
+                  <option value="side-right">QR/Barcode di Kanan &bull; Teks di Kiri</option>
+                  <option value="stacked">QR/Barcode di Atas &bull; Teks di Bawah (Vertikal)</option>
+                </select>
+              </div>
+
+              <!-- Ukuran Barcode / QR Code Slider -->
+              <div class="pt-1">
+                <div class="flex items-center justify-between text-[11px] mb-0.5">
+                  <span class="text-slate-600 font-medium flex items-center gap-1">
+                    <span>📐</span> Ukuran Barcode / QR:
+                  </span>
+                  <span id="barcode-size-val" class="font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-1.5 py-0.2 rounded text-[10px]">100%</span>
+                </div>
+                <input type="range" id="barcode-size-slider" min="50" max="150" step="5" value="100" class="w-full accent-indigo-600 h-1 bg-slate-200 rounded cursor-pointer">
+              </div>
+
+              <!-- Posisi & Slicing Nomor Barcode / ID -->
+              <div class="grid grid-cols-2 gap-2 pt-1 border-t border-slate-200/60">
+                <div>
+                  <label for="id-position-select" class="block text-[11px] text-slate-600 mb-0.5 font-medium">Posisi Nomor ID</label>
+                  <select id="id-position-select" class="w-full px-2 py-1.5 border border-slate-200 rounded-md bg-white text-[11px] focus:ring-1 focus:ring-indigo-500 outline-none">
+                    <option value="under-code" selected>Di Bawah QR/Barcode (Sliced Vertikal)</option>
+                    <option value="side-text">Di Samping (Bersama Teks)</option>
+                    <option value="none">Sembunyikan Nomor ID</option>
+                  </select>
+                </div>
+                <div id="id-slice-wrap">
+                  <label for="id-slice-select" class="block text-[11px] text-slate-600 mb-0.5 font-medium">Slicing Vertikal ID</label>
+                  <select id="id-slice-select" class="w-full px-2 py-1.5 border border-slate-200 rounded-md bg-white text-[11px] focus:ring-1 focus:ring-indigo-500 outline-none">
+                    <option value="auto" selected>Otomatis (7-8 Karakter)</option>
+                    <option value="6">Per 6 Karakter</option>
+                    <option value="7">Per 7 Karakter</option>
+                    <option value="8">Per 8 Karakter</option>
+                    <option value="10">Per 10 Karakter</option>
+                    <option value="none">1 Baris (Tanpa Slice)</option>
+                  </select>
+                </div>
+              </div>
             </div>
 
             <!-- Kontrol Ukuran Font -->
@@ -1129,26 +1166,58 @@
     </div>
   </div>
 
-  <!-- MODAL RIWAYAT / HISTORY -->
+  <!-- MODAL RIWAYAT / HISTORY TABEL RINCIAN -->
   <div id="history-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4">
-    <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[85vh] flex flex-col">
+    <div class="bg-white rounded-2xl max-w-2xl w-full p-5 sm:p-6 shadow-2xl space-y-4 max-h-[85vh] flex flex-col">
       <div class="flex items-center justify-between border-b border-slate-100 pb-3">
         <div>
-          <h3 class="font-bold text-slate-900 text-base">Riwayat Nomor ID Terdaftar</h3>
-          <p class="text-xs text-slate-500">Semua nomor identitas unik yang pernah dibuat tersimpan di sini untuk mencegah duplikasi.</p>
+          <div class="flex items-center gap-2">
+            <h3 class="font-bold text-slate-900 text-base">Rincian Nomor ID Terdaftar</h3>
+            <span id="history-modal-count-badge" class="bg-indigo-100 text-indigo-800 text-xs px-2 py-0.5 rounded-full font-bold">0 ID</span>
+          </div>
+          <p class="text-xs text-slate-500">Daftar seluruh ID unik yang terdaftar pada sistem untuk mencegah duplikasi.</p>
         </div>
         <button type="button" id="btn-close-history-modal" class="text-slate-400 hover:text-slate-600 text-xl font-bold">&times;</button>
       </div>
 
-      <div class="flex-1 overflow-y-auto border border-slate-100 rounded-lg p-2 bg-slate-50">
-        <ul id="history-list-container" class="space-y-1 text-xs font-mono text-slate-700">
-          <!-- Dinamis diisi -->
-        </ul>
+      <!-- Filter Pencarian ID Riwayat -->
+      <div class="relative">
+        <input type="text" id="history-search-input" placeholder="🔍 Cari ID dalam riwayat terdaftar..." class="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+      </div>
+
+      <!-- Tabel Rincian -->
+      <div class="flex-1 overflow-y-auto border border-slate-200 rounded-xl bg-white shadow-xs">
+        <table class="w-full text-left text-xs border-collapse">
+          <thead class="bg-slate-50 sticky top-0 border-b border-slate-200 text-slate-600 font-semibold z-10">
+            <tr>
+              <th class="py-2 px-3 w-12 text-center">No</th>
+              <th class="py-2 px-3">Nomor Identitas (ID)</th>
+              <th class="py-2 px-3 text-center">Panjang</th>
+              <th class="py-2 px-3">Label / Batch</th>
+              <th class="py-2 px-3 text-right">Aksi</th>
+            </tr>
+          </thead>
+          <tbody id="history-table-body" class="divide-y divide-slate-100 text-slate-700">
+            <!-- Dinamis diisi -->
+          </tbody>
+        </table>
+        <ul id="history-list-container" class="hidden"></ul>
       </div>
 
       <div class="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
-        <button type="button" id="btn-clear-history" class="text-red-600 hover:text-red-700 font-semibold">Hapus Semua Riwayat</button>
-        <button type="button" id="btn-dismiss-history" class="px-4 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md font-medium">Tutup</button>
+        <button type="button" id="btn-clear-history" class="text-rose-600 hover:text-rose-700 font-semibold flex items-center gap-1">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+          Hapus Semua Riwayat
+        </button>
+        <div class="flex items-center gap-2">
+          <button type="button" id="btn-switch-to-management-from-history" class="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold rounded-lg transition">Buka di Barcode Management &rarr;</button>
+          <button type="button" id="btn-dismiss-history" class="px-4 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium">Tutup</button>
+        </div>
       </div>
     </div>
   </div>

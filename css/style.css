@@ -538,3 +538,19 @@ body {
     margin: 0 auto !important;
   }
 }
+
+/* HD Crisp Rendering for Barcode and QR Code Canvases */
+canvas.crisp-hd,
+.label-sticker-cutout canvas,
+#live-design-preview-canvas {
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
+  image-rendering: pixelated;
+  -webkit-font-smoothing: antialiased;
+}
+
+#btn-total-registered:hover #registry-count-badge {
+  background-color: #e0e7ff;
+  color: #4338ca;
+}
+

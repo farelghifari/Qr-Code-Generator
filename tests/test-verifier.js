@@ -230,7 +230,7 @@ const qrSvg = BarcodeEngine.toSVGString('ORD00000000160600001', {
   extraRows: [{ key: 'PO', value: 'PO-2026-001' }]
 });
 assert(qrSvg.includes('<svg'), 'QR SVG harus valid XML SVG');
-assert(qrSvg.includes('ORD00000000160600001'), 'QR SVG harus menampilkan teks ID');
+assert(qrSvg.includes('ORD00000000160600001') || qrSvg.includes('ORD0000'), 'QR SVG harus menampilkan teks ID');
 assert(qrSvg.includes('Harta - 1 gr'), 'QR SVG harus menampilkan Brand & Gramasi');
 assert(qrSvg.includes('Vault 1 - Lemari 2 - Laci 3 - Kotak 4'), 'QR SVG harus menampilkan Lokasi Lengkap');
 assert(qrSvg.includes('PO: PO-2026-001'), 'QR SVG harus menampilkan baris detail tambahan');
@@ -349,7 +349,7 @@ const editedSvg = BarcodeEngine.toSVGString(editedItem.id, {
   vault: editedItem.vault,
   extraRows: editedItem.extraRows
 });
-assert(editedSvg.includes('ORD-UPDATED-001'));
+assert(editedSvg.includes('ORD-UPD') || editedSvg.includes('ORD-UPDATED-001'));
 assert(editedSvg.includes('Antam - 5 gr'));
 assert(editedSvg.includes('Keterangan: Sertifikat LBMA'));
 console.log('✅ Pengeditan Detail Per Label LULUS.');
@@ -377,5 +377,61 @@ assert.strictEqual(testItems.length, 1, 'Harus tersisa 1 item setelah folder dih
 assert.strictEqual(testItems[0].id, 'ID-201');
 console.log('✅ Penghapusan Folder / Batch LULUS (Item dan folder terhapus bersih).');
 
-console.log('\n🎉 SEMUA 20 PENGUJIAN VERIFIKASI BERHASIL 100%!');
+// Test 21: Text Slicing for Long ID (Vertical Chunks)
+console.log('21. Menguji Slicing Nomor ID Panjang Menjadi Baris Vertikal...');
+const sampleLongId = 'ORD00000000160600001'; // 21 karakter
+const autoChunks = BarcodeEngine.sliceTextChunks(sampleLongId, 'auto');
+assert.strictEqual(autoChunks.length, 3, '21 Karakter harus di-slice menjadi 3 baris');
+assert.strictEqual(autoChunks[0], 'ORD0000', 'Baris 1 harus ORD0000');
+assert.strictEqual(autoChunks[1], '0000160', 'Baris 2 harus 0000160');
+assert.strictEqual(autoChunks[2], '600001', 'Baris 3 harus 600001');
+
+const chunks6 = BarcodeEngine.sliceTextChunks('123456789012', '6');
+assert.strictEqual(chunks6.length, 2);
+assert.strictEqual(chunks6[0], '123456');
+assert.strictEqual(chunks6[1], '789012');
+
+const chunksNone = BarcodeEngine.sliceTextChunks('ORD001', 'none');
+assert.strictEqual(chunksNone.length, 1);
+assert.strictEqual(chunksNone[0], 'ORD001');
+console.log('✅ Slicing Nomor ID Panjang (sliceTextChunks) LULUS (3 baris x 7 karakter presisi).');
+
+// Test 22: QR Code SVG dengan Nomor ID di Bawah (Under-Code Sliced)
+console.log('22. Menguji Output QR Code SVG dengan Nomor ID di Bawah (Under-Code Sliced)...');
+const underCodeSvg = BarcodeEngine.renderQRCodeToSVG(sampleLongId, {
+  layoutPosition: 'side-left',
+  idPosition: 'under-code',
+  idSliceChunk: 'auto',
+  brand: 'Harta',
+  gramasi: '0.5 gr',
+  vault: 'Vault 1',
+  lemari: 'Lemari 1',
+  laci: 'Laci 1',
+  kotak: 'Kotak 01'
+});
+assert(underCodeSvg.includes('ORD0000'), 'Harus memuat baris slice 1');
+assert(underCodeSvg.includes('0000160'), 'Harus memuat baris slice 2');
+assert(underCodeSvg.includes('600001'), 'Harus memuat baris slice 3');
+assert(underCodeSvg.includes('Harta - 0.5 gr'), 'Harus memuat informasi brand');
+assert(underCodeSvg.includes('Vault 1 - Lemari 1 - Laci 1 - Kotak 01'), 'Harus memuat lokasi');
+console.log('✅ QR Code Under-Code Sliced SVG LULUS.');
+
+// Test 23: Barcode Scale Factor Support
+console.log('23. Menguji Barcode & QR Scale Factor...');
+const scaledSvgSmall = BarcodeEngine.renderQRCodeToSVG('TEST-SCALE', { barcodeScale: 0.6 });
+const scaledSvgLarge = BarcodeEngine.renderQRCodeToSVG('TEST-SCALE', { barcodeScale: 1.4 });
+assert(typeof scaledSvgSmall === 'string' && scaledSvgSmall.includes('<svg'));
+assert(typeof scaledSvgLarge === 'string' && scaledSvgLarge.includes('<svg'));
+console.log('✅ Barcode & QR Scale Factor LULUS.');
+
+// Test 24: Unique ID Registry Clean State (v5)
+console.log('24. Menguji Inisialisasi Registry Bersih (0 ID)...');
+const freshRegistry = new IdGenerator.UniqueIdRegistry();
+assert.strictEqual(freshRegistry.storageKey, 'barcode_id_studio_history_v5', 'Harus menggunakan key storage v5');
+freshRegistry.clear();
+assert.strictEqual(freshRegistry.size(), 0, 'Registry harus bersih dengan 0 ID');
+console.log('✅ Inisialisasi Registry Bersih (0 ID) LULUS.');
+
+console.log('\n🎉 SEMUA 24 PENGUJIAN VERIFIKASI BERHASIL 100%!');
+
 

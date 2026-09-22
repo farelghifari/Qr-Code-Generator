@@ -6,8 +6,8 @@
 document.addEventListener('DOMContentLoaded', () => {
   'use strict';
 
-  const ITEMS_STORAGE_KEY = 'barcode_studio_items_v4';
-  const BATCHES_STORAGE_KEY = 'barcode_studio_batches_v2';
+  const ITEMS_STORAGE_KEY = 'barcode_studio_items_v5';
+  const BATCHES_STORAGE_KEY = 'barcode_studio_batches_v3';
 
   // Template Presets Dictionary
   const TEMPLATE_PRESETS = {
@@ -177,6 +177,17 @@ document.addEventListener('DOMContentLoaded', () => {
   const fontSizeIdVal = document.getElementById('font-size-id-val');
   const liveDesignPreviewCanvas = document.getElementById('live-design-preview-canvas');
   const livePreviewDimTag = document.getElementById('live-preview-dim-tag');
+
+  const barcodeSizeSlider = document.getElementById('barcode-size-slider');
+  const barcodeSizeVal = document.getElementById('barcode-size-val');
+  const idPositionSelect = document.getElementById('id-position-select');
+  const idSliceSelect = document.getElementById('id-slice-select');
+  const idSliceWrap = document.getElementById('id-slice-wrap');
+  const btnTotalRegistered = document.getElementById('btn-total-registered');
+  const historySearchInput = document.getElementById('history-search-input');
+  const historyTableBody = document.getElementById('history-table-body');
+  const historyModalCountBadge = document.getElementById('history-modal-count-badge');
+  const btnSwitchToManagementFromHistory = document.getElementById('btn-switch-to-management-from-history');
 
   // DOM Elements - Pre-generation Extra Rows
   const pregenExtraRowsList = document.getElementById('pregen-extra-rows-list');
@@ -409,7 +420,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function loadItemsFromStorage() {
     try {
-      ['barcode_studio_items_v1', 'barcode_studio_items_v2', 'barcode_studio_items_v3', 'barcode_studio_batches_v1'].forEach(k => {
+      ['barcode_studio_items_v1', 'barcode_studio_items_v2', 'barcode_studio_items_v3', 'barcode_studio_items_v4', 'barcode_studio_batches_v1', 'barcode_studio_batches_v2'].forEach(k => {
         try { localStorage.removeItem(k); } catch (e) {}
       });
     } catch (e) {}
@@ -523,6 +534,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     updateModePreviews();
+    updateLiveDesignPreview();
   }
 
   tabButtons.forEach((btn) => {
@@ -567,8 +579,22 @@ document.addEventListener('DOMContentLoaded', () => {
     randPreviewText.textContent = `${rPfx}${'X'.repeat(rLen)}, ${rPfx}${'Y'.repeat(rLen)}...`;
   }
 
-  [seqPrefix, seqSuffix, seqStart, seqPad].forEach(el => el.addEventListener('input', updateModePreviews));
-  [randPrefix, randLength, randOptUpper, randOptNum, randOptLower].forEach(el => el.addEventListener('input', updateModePreviews));
+  [seqPrefix, seqSuffix, seqStart, seqPad].forEach(el => {
+    if (el) {
+      el.addEventListener('input', () => {
+        updateModePreviews();
+        updateLiveDesignPreview();
+      });
+    }
+  });
+  [randPrefix, randLength, randOptUpper, randOptNum, randOptLower].forEach(el => {
+    if (el) {
+      el.addEventListener('input', () => {
+        updateModePreviews();
+        updateLiveDesignPreview();
+      });
+    }
+  });
 
   // --- SINGLE MODE RANDOMIZE BUTTON ---
   btnSingleRandomize.addEventListener('click', () => {
@@ -580,7 +606,14 @@ document.addEventListener('DOMContentLoaded', () => {
       useNumbers: true
     });
     singleIdInput.value = rand[0];
+    updateLiveDesignPreview();
   });
+
+  if (singleIdInput) {
+    singleIdInput.addEventListener('input', () => {
+      updateLiveDesignPreview();
+    });
+  }
 
   // --- CUSTOM TEXTAREA DUPLICATE CHECKER ---
   customTextarea.addEventListener('input', () => {
@@ -594,6 +627,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       customDupWarning.classList.add('hidden');
     }
+    updateLiveDesignPreview();
   });
 
   // --- EXCEL & CSV FILE IMPORT LOGIC ---
@@ -1260,6 +1294,9 @@ document.addEventListener('DOMContentLoaded', () => {
       fontSizeDetails: fsDetails,
       fontSizeId: fsId,
       displayValue: showTextCheckbox ? showTextCheckbox.checked : true,
+      barcodeScale: (parseFloat(barcodeSizeSlider ? barcodeSizeSlider.value : '100') || 100) / 100,
+      idPosition: idPositionSelect ? idPositionSelect.value : 'under-code',
+      idSliceChunk: idSliceSelect ? idSliceSelect.value : 'auto',
       barWidth: parseFloat(barWidthSlider ? barWidthSlider.value : '2') || 2,
       height: parseInt(barHeightSlider ? barHeightSlider.value : '45', 10) || 45,
       margin: 6,
@@ -1268,13 +1305,65 @@ document.addEventListener('DOMContentLoaded', () => {
     };
   }
 
+  // --- AMBIL CONTOH ID SESUAI POLA FORMAT DI SECTION 1 ---
+  function getSampleIdFromActiveConfig() {
+    try {
+      if (currentMode === 'sequential') {
+        const p = seqPrefix ? seqPrefix.value : 'ORD';
+        const s = seqSuffix ? seqSuffix.value : '';
+        const pad = parseInt(seqPad ? seqPad.value : '16', 10) || 0;
+        const start = parseInt(seqStart ? seqStart.value : '1', 10) || 1;
+        let numStr = String(start);
+        if (pad > 0) {
+          numStr = numStr.padStart(pad, '0');
+        }
+        return `${p}${numStr}${s}` || 'ORD00000000160600001';
+      } else if (currentMode === 'alphanumeric') {
+        const p = randPrefix ? randPrefix.value : '';
+        const len = parseInt(randLength ? randLength.value : '12', 10) || 12;
+        let sample = 'A1B2C3D4E5F6'.slice(0, len);
+        if (sample.length < len) sample = sample.padEnd(len, 'X');
+        return `${p}${sample}`;
+      } else if (currentMode === 'timestamp') {
+        const p = tsPrefix ? tsPrefix.value : 'ID-';
+        return `${p}${Date.now()}`;
+      } else if (currentMode === 'uuid') {
+        const p = uuidPrefix ? uuidPrefix.value : '';
+        return `${p}9b1deb4d-3b7d`;
+      } else if (currentMode === 'custom') {
+        if (customTextarea && customTextarea.value.trim()) {
+          const lines = customTextarea.value.split('\n').map(l => l.trim()).filter(Boolean);
+          if (lines.length > 0) return lines[0];
+        }
+        return 'CUSTOM-001';
+      } else if (currentMode === 'single') {
+        if (singleIdInput && singleIdInput.value.trim()) {
+          return singleIdInput.value.trim();
+        }
+      }
+    } catch (e) {}
+    return 'ORD00000000160600001';
+  }
+
   // --- REAL-TIME LIVE DESIGN PREVIEW ---
   function updateLiveDesignPreview() {
     if (!liveDesignPreviewCanvas) return;
     const renderOpts = getRenderOptions();
+    const sampleId = getSampleIdFromActiveConfig();
+    const idLen = sampleId.length;
+
+    let sliceInfo = '';
+    if (renderOpts.idPosition === 'under-code') {
+      const chunks = BarcodeEngine.sliceTextChunks ? BarcodeEngine.sliceTextChunks(sampleId, renderOpts.idSliceChunk) : [sampleId];
+      sliceInfo = ` • Sliced (${chunks.length} baris)`;
+    } else if (renderOpts.idPosition === 'side-text') {
+      sliceInfo = ' • Di Teks';
+    } else {
+      sliceInfo = ' • Tanpa ID';
+    }
 
     if (livePreviewDimTag) {
-      livePreviewDimTag.textContent = `${renderOpts.labelWidthMm} × ${renderOpts.labelHeightMm} mm`;
+      livePreviewDimTag.textContent = `${renderOpts.labelWidthMm}×${renderOpts.labelHeightMm}mm (${idLen} kar${sliceInfo})`;
     }
 
     const scale = 5; // 1mm = 5px for high quality crisp preview
@@ -1286,7 +1375,6 @@ document.addEventListener('DOMContentLoaded', () => {
     liveDesignPreviewCanvas.style.maxWidth = '280px';
     liveDesignPreviewCanvas.style.height = 'auto';
 
-    const sampleId = 'ORD00000000160600001';
     const sampleTitle = (topLabelInput && topLabelInput.value.trim()) || 'Harta - 0.5 gr';
     const sampleOptions = {
       ...renderOpts,
@@ -1316,6 +1404,31 @@ document.addEventListener('DOMContentLoaded', () => {
   if (topLabelInput) {
     topLabelInput.addEventListener('input', () => {
       updateLiveDesignPreview();
+    });
+  }
+
+  if (barcodeSizeSlider) {
+    barcodeSizeSlider.addEventListener('input', (e) => {
+      if (barcodeSizeVal) barcodeSizeVal.textContent = `${e.target.value}%`;
+      updateLiveDesignPreview();
+      renderAllViews();
+    });
+  }
+
+  if (idPositionSelect) {
+    idPositionSelect.addEventListener('change', (e) => {
+      if (idSliceWrap) {
+        idSliceWrap.classList.toggle('hidden', e.target.value !== 'under-code');
+      }
+      updateLiveDesignPreview();
+      renderAllViews();
+    });
+  }
+
+  if (idSliceSelect) {
+    idSliceSelect.addEventListener('change', () => {
+      updateLiveDesignPreview();
+      renderAllViews();
     });
   }
 
@@ -1754,14 +1867,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const canvas = document.createElement('canvas');
     canvas.dataset.id = item.id;
+    canvas.className = 'crisp-hd';
+    canvas.style.width = '100%';
+    canvas.style.height = 'auto';
     canvasWrap.appendChild(canvas);
     card.appendChild(canvasWrap);
 
-    // Render Barcode / QR Code ke Canvas
+    // Render Barcode / QR Code ke Canvas dengan resolusi tajam HD
     try {
+      const scale = 6; // 1mm = 6px untuk ketajaman HD pada layar retina/smartphone
+      const targetW = Math.round(renderOpts.labelWidthMm * scale);
+      const targetH = Math.round(renderOpts.labelHeightMm * scale);
       const mergedOpts = {
         ...renderOpts,
         ...item,
+        targetWidth: targetW,
+        targetHeight: targetH,
         format: item.format || renderOpts.format,
         topLabel: item.label || renderOpts.topLabel
       };
@@ -2628,23 +2749,104 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // --- CLICK TOTAL TERDAFTAR -> BUKA RINCIAN TABEL RIWAYAT ---
+  if (btnTotalRegistered) {
+    btnTotalRegistered.addEventListener('click', () => {
+      renderHistoryModal();
+      historyModal.classList.remove('hidden');
+      historyModal.classList.add('flex');
+    });
+  }
+
+  if (btnSwitchToManagementFromHistory) {
+    btnSwitchToManagementFromHistory.addEventListener('click', () => {
+      historyModal.classList.add('hidden');
+      historyModal.classList.remove('flex');
+      if (currentView !== 'management') {
+        switchView('management');
+      }
+      const tableCard = document.getElementById('management-table-container');
+      if (tableCard) {
+        tableCard.scrollIntoView({ behavior: 'smooth' });
+      }
+    });
+  }
+
+  if (historySearchInput) {
+    historySearchInput.addEventListener('input', () => {
+      renderHistoryModal();
+    });
+  }
+
   function renderHistoryModal() {
-    historyListContainer.innerHTML = '';
-    const arr = Array.from(IdGenerator.registry.historySet);
-    if (!arr.length) {
-      historyListContainer.innerHTML = '<li class="text-slate-400 italic p-3 text-center">Belum ada nomor identitas yang tersimpan dalam riwayat.</li>';
-      return;
+    const allIds = Array.from(IdGenerator.registry.historySet);
+    const filterQuery = (historySearchInput ? historySearchInput.value.trim() : '').toLowerCase();
+
+    if (historyModalCountBadge) {
+      historyModalCountBadge.textContent = `${allIds.length} ID Terdaftar`;
     }
 
-    arr.reverse().slice(0, 500).forEach(id => {
-      const li = document.createElement('li');
-      li.className = 'py-1 px-2 hover:bg-white rounded flex items-center justify-between border-b border-slate-100';
-      li.innerHTML = `
-        <span class="text-slate-800 font-semibold">${escapeHtml(id)}</span>
-        <span class="text-[10px] text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">Unik</span>
-      `;
-      historyListContainer.appendChild(li);
-    });
+    if (historyTableBody) {
+      historyTableBody.innerHTML = '';
+      const filtered = filterQuery 
+        ? allIds.filter(id => id.toLowerCase().includes(filterQuery))
+        : allIds;
+
+      if (!filtered.length) {
+        historyTableBody.innerHTML = `
+          <tr>
+            <td colspan="5" class="py-6 text-center text-slate-400 italic">
+              ${allIds.length === 0 ? 'Belum ada nomor identitas yang tersimpan dalam riwayat (0 ID).' : 'Tidak ada ID yang cocok dengan pencarian.'}
+            </td>
+          </tr>
+        `;
+      } else {
+        const itemMap = new Map();
+        generatedItems.forEach(it => {
+          if (it && it.id) itemMap.set(it.id, it);
+        });
+
+        const displayList = [...filtered].reverse().slice(0, 300);
+        displayList.forEach((id, idx) => {
+          const it = itemMap.get(id);
+          const labelText = it ? (it.label || (it.brand ? `${it.brand} ${it.gramasi || ''}` : '-')) : '-';
+          const batchText = it && it.batchName ? it.batchName : 'Riwayat';
+
+          const tr = document.createElement('tr');
+          tr.className = 'hover:bg-slate-50 transition border-b border-slate-100';
+          tr.innerHTML = `
+            <td class="py-2 px-3 text-center text-slate-400 text-[11px]">${idx + 1}</td>
+            <td class="py-2 px-3 font-mono font-bold text-indigo-700 text-xs">${escapeHtml(id)}</td>
+            <td class="py-2 px-3 text-center text-slate-500 text-[11px]">${id.length} kar</td>
+            <td class="py-2 px-3 text-slate-600 text-[11px]">
+              <span class="font-medium text-slate-800">${escapeHtml(labelText)}</span>
+              <span class="ml-1 text-[10px] bg-slate-100 text-slate-600 px-1 py-0.2 rounded">${escapeHtml(batchText)}</span>
+            </td>
+            <td class="py-2 px-3 text-right">
+              <button type="button" class="btn-copy-history-id px-2 py-0.5 text-[11px] text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded font-semibold transition" data-id="${escapeHtml(id)}">
+                📋 Salin
+              </button>
+            </td>
+          `;
+
+          tr.querySelector('.btn-copy-history-id').addEventListener('click', async (e) => {
+            const idToCopy = e.currentTarget.dataset.id;
+            try {
+              await navigator.clipboard.writeText(idToCopy);
+              showToast(`ID "${idToCopy}" disalin!`);
+            } catch (err) {
+              showToast(`ID: ${idToCopy}`);
+            }
+          });
+
+          historyTableBody.appendChild(tr);
+        });
+      }
+    }
+
+    if (historyListContainer) {
+      historyListContainer.innerHTML = '';
+    }
   }
 
   function escapeHtml(text) {

@@ -271,6 +271,34 @@
   }
 
   /**
+   * Memotong / memecah teks ID panjang menjadi beberapa baris vertikal rapi
+   * Mendukung 'auto' (7-8 karakter per baris), angka spesifik (6, 7, 8, 10), atau 'none'
+   */
+  function sliceTextChunks(text, chunkSize = 'auto') {
+    if (!text) return [];
+    const str = String(text).trim();
+    if (!str) return [];
+    if (chunkSize === 'none') return [str];
+
+    let size = 7;
+    if (chunkSize === 'auto') {
+      if (str.length <= 8) return [str];
+      if (str.length <= 14) size = Math.ceil(str.length / 2);
+      else if (str.length <= 21) size = 7; // e.g. 21 karakter -> 3 baris x 7 karakter
+      else size = 8;
+    } else {
+      const parsed = parseInt(chunkSize, 10);
+      if (!isNaN(parsed) && parsed > 0) size = parsed;
+    }
+
+    const chunks = [];
+    for (let i = 0; i < str.length; i += size) {
+      chunks.push(str.substring(i, i + size));
+    }
+    return chunks;
+  }
+
+  /**
    * Render QR Code ke Canvas Element
    */
   function renderQRCodeToCanvas(canvas, text, options = {}) {
@@ -285,6 +313,9 @@
       targetHeight = 0,
       margin = 8,
       displayValue = true,
+      idPosition = 'under-code',
+      idSliceChunk = 'auto',
+      barcodeScale = 1.0,
       fontSizeTitle = 12,
       fontSizeDetails = 10,
       fontSizeId = 11,
@@ -347,6 +378,16 @@
       return canvas;
     }
 
+    // Nomor ID dipotong (sliced) jika di bawah barcode / under-code
+    const showIdUnder = displayValue && idPosition === 'under-code';
+    const showIdSide = displayValue && idPosition === 'side-text';
+    const idLines = showIdUnder ? sliceTextChunks(qrText, idSliceChunk) : [];
+
+    // Hitung tinggi teks ID jika diletakkan di bawah QR
+    const idLineH = fontSizeId + 2;
+    const totalIdH = showIdUnder && idLines.length > 0 ? (idLines.length * idLineH + 2) : 0;
+    const scaleFactor = Math.max(0.4, Math.min(1.6, parseFloat(barcodeScale) || 1.0));
+
     if (layoutPosition === 'stacked') {
       let curY = margin;
       if (detailLines.length > 0) {
@@ -367,9 +408,10 @@
         curY += 3;
       }
 
-      const idHeight = displayValue ? (fontSizeId + 6) : 0;
+      const idHeight = showIdUnder ? totalIdH : (showIdSide ? (fontSizeId + 4) : 0);
       const remainH = Math.max(10, height - curY - idHeight - margin);
-      const cellSize = Math.max(1, Math.floor(remainH / count));
+      const rawCellSize = Math.max(1, Math.floor(remainH / count));
+      const cellSize = Math.max(1, Math.floor(rawCellSize * scaleFactor));
       const qrPixelSize = cellSize * count;
       const qrX = Math.round((width - qrPixelSize) / 2);
       const qrY = curY + Math.round((remainH - qrPixelSize) / 2);
@@ -383,7 +425,17 @@
         }
       }
 
-      if (displayValue) {
+      if (showIdUnder && idLines.length > 0) {
+        ctx.fillStyle = lineColor;
+        ctx.font = `bold ${fontSizeId}px monospace`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        let curIdY = qrY + qrPixelSize + 3;
+        idLines.forEach(line => {
+          ctx.fillText(line, width / 2, curIdY);
+          curIdY += idLineH;
+        });
+      } else if (showIdSide || (displayValue && !showIdUnder)) {
         ctx.fillStyle = lineColor;
         ctx.font = `bold ${fontSizeId}px monospace`;
         ctx.textAlign = 'center';
@@ -391,13 +443,31 @@
         ctx.fillText(qrText, width / 2, qrY + qrPixelSize + 3);
       }
     } else {
+      // side-left atau side-right (Proporsional & seimbang, tidak mepet ke kiri)
       const isSideLeft = layoutPosition !== 'side-right';
-      const availableH = height - (margin * 2);
-      const cellSize = Math.max(1, Math.floor(availableH / count));
-      const qrPixelSize = cellSize * count;
-      const qrY = Math.round((height - qrPixelSize) / 2);
-      const qrX = isSideLeft ? margin : (width - margin - qrPixelSize);
 
+      // Alokasikan zona kolom QR Code secara proporsional (~35% - 40% dari lebar label)
+      const codeZoneW = Math.max(Math.round(height * 0.9), Math.round(width * 0.38));
+      const codeZoneCenter = isSideLeft 
+        ? Math.round(codeZoneW / 2) 
+        : (width - Math.round(codeZoneW / 2));
+
+      // Hitung batas ukuran QR agar proporsional di dalam codeZone
+      const availableH = height - (margin * 2) - totalIdH;
+      const availableW = codeZoneW - (margin * 2);
+      const maxBox = Math.max(10, Math.min(availableH, availableW));
+
+      const rawCellSize = Math.max(1, Math.floor(maxBox / count));
+      const cellSize = Math.max(1, Math.floor(rawCellSize * scaleFactor));
+      const qrPixelSize = cellSize * count;
+
+      // Hitung total tinggi kelompok (QR + Sliced ID) agar vertikal di tengah zona
+      const totalGroupH = qrPixelSize + (totalIdH > 0 ? (totalIdH + 2) : 0);
+      const groupY = Math.max(margin, Math.round((height - totalGroupH) / 2));
+      const qrY = groupY;
+      const qrX = Math.round(codeZoneCenter - (qrPixelSize / 2));
+
+      // Gambar Modul QR Code
       ctx.fillStyle = lineColor;
       for (let r = 0; r < count; r++) {
         for (let c = 0; c < count; c++) {
@@ -407,10 +477,26 @@
         }
       }
 
-      const textX = isSideLeft ? (qrX + qrPixelSize + 12) : margin;
-      const maxTextW = isSideLeft ? (width - textX - margin) : (qrX - 12 - margin);
+      // Render Nomor ID di bawah QR (Sliced Vertikal)
+      if (showIdUnder && idLines.length > 0) {
+        ctx.fillStyle = lineColor;
+        ctx.font = `bold ${fontSizeId}px monospace`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        let curIdY = qrY + qrPixelSize + 3;
+        idLines.forEach(line => {
+          ctx.fillText(line, codeZoneCenter, curIdY);
+          curIdY += idLineH;
+        });
+      }
 
-      const totalLines = detailLines.length + (displayValue ? 1 : 0);
+      // Zona Teks Detail Produk
+      const textX = isSideLeft ? (codeZoneW + 8) : margin;
+      const maxTextW = isSideLeft 
+        ? Math.max(20, width - textX - margin) 
+        : Math.max(20, (width - codeZoneW - 8) - margin);
+
+      const totalLines = detailLines.length + (showIdSide ? 1 : 0);
       const lineHeights = [];
       let totalTextH = 0;
 
@@ -420,7 +506,7 @@
         lineHeights.push(h);
         totalTextH += h;
       });
-      if (displayValue) {
+      if (showIdSide) {
         const h = fontSizeId + 6;
         lineHeights.push(h);
         totalTextH += h;
@@ -439,7 +525,7 @@
         textY += lineHeights[idx];
       });
 
-      if (displayValue) {
+      if (showIdSide) {
         ctx.font = `bold ${fontSizeId}px monospace`;
         ctx.fillText(qrText, anchorX, textY + 2, maxTextW);
       }
@@ -462,6 +548,9 @@
       targetHeight = 0,
       margin = 8,
       displayValue = true,
+      idPosition = 'under-code',
+      idSliceChunk = 'auto',
+      barcodeScale = 1.0,
       fontSizeTitle = 12,
       fontSizeDetails = 10,
       fontSizeId = 11,
@@ -502,6 +591,13 @@
       }
     }
 
+    const showIdUnder = displayValue && idPosition === 'under-code';
+    const showIdSide = displayValue && idPosition === 'side-text';
+    const idLines = showIdUnder ? sliceTextChunks(qrText, idSliceChunk) : [];
+    const idLineH = fontSizeId + 2;
+    const totalIdH = showIdUnder && idLines.length > 0 ? (idLines.length * idLineH + 2) : 0;
+    const scaleFactor = Math.max(0.4, Math.min(1.6, parseFloat(barcodeScale) || 1.0));
+
     let rects = '';
     let textSvg = '';
 
@@ -517,9 +613,11 @@
           }
           curY += 3;
         }
-        const idHeight = displayValue ? (fontSizeId + 6) : 0;
+
+        const idHeight = showIdUnder ? totalIdH : (showIdSide ? (fontSizeId + 4) : 0);
         const remainH = Math.max(10, height - curY - idHeight - margin);
-        const cellSize = Math.max(1, Math.floor(remainH / count));
+        const rawCellSize = Math.max(1, Math.floor(remainH / count));
+        const cellSize = Math.max(1, Math.floor(rawCellSize * scaleFactor));
         const qrPixelSize = cellSize * count;
         const qrX = Math.round((width - qrPixelSize) / 2);
         const qrY = curY + Math.round((remainH - qrPixelSize) / 2);
@@ -531,16 +629,31 @@
             }
           }
         }
-        if (displayValue) {
+        if (showIdUnder && idLines.length > 0) {
+          let curIdY = qrY + qrPixelSize + fontSizeId + 2;
+          idLines.forEach(l => {
+            textSvg += `<text x="${width / 2}" y="${curIdY}" text-anchor="middle" font-family="monospace" font-weight="bold" font-size="${fontSizeId}" fill="${lineColor}">${escapeXml(l)}</text>`;
+            curIdY += idLineH;
+          });
+        } else if (showIdSide || (displayValue && !showIdUnder)) {
           textSvg += `<text x="${width / 2}" y="${qrY + qrPixelSize + fontSizeId + 2}" text-anchor="middle" font-family="monospace" font-weight="bold" font-size="${fontSizeId}" fill="${lineColor}">${escapeXml(qrText)}</text>`;
         }
       } else {
         const isSideLeft = layoutPosition !== 'side-right';
-        const availableH = height - (margin * 2);
-        const cellSize = Math.max(1, Math.floor(availableH / count));
+        const codeZoneW = Math.max(Math.round(height * 0.9), Math.round(width * 0.38));
+        const codeZoneCenter = isSideLeft ? Math.round(codeZoneW / 2) : (width - Math.round(codeZoneW / 2));
+
+        const availableH = height - (margin * 2) - totalIdH;
+        const availableW = codeZoneW - (margin * 2);
+        const maxBox = Math.max(10, Math.min(availableH, availableW));
+
+        const rawCellSize = Math.max(1, Math.floor(maxBox / count));
+        const cellSize = Math.max(1, Math.floor(rawCellSize * scaleFactor));
         const qrPixelSize = cellSize * count;
-        const qrY = Math.round((height - qrPixelSize) / 2);
-        const qrX = isSideLeft ? margin : (width - margin - qrPixelSize);
+
+        const totalGroupH = qrPixelSize + (totalIdH > 0 ? (totalIdH + 2) : 0);
+        const qrY = Math.max(margin, Math.round((height - totalGroupH) / 2));
+        const qrX = Math.round(codeZoneCenter - (qrPixelSize / 2));
 
         for (let r = 0; r < count; r++) {
           for (let c = 0; c < count; c++) {
@@ -550,8 +663,16 @@
           }
         }
 
-        const textX = isSideLeft ? (qrX + qrPixelSize + 12) : margin;
-        const maxTextW = isSideLeft ? (width - textX - margin) : (qrX - 12 - margin);
+        if (showIdUnder && idLines.length > 0) {
+          let curIdY = qrY + qrPixelSize + fontSizeId + 2;
+          idLines.forEach(l => {
+            textSvg += `<text x="${codeZoneCenter}" y="${curIdY}" text-anchor="middle" font-family="monospace" font-weight="bold" font-size="${fontSizeId}" fill="${lineColor}">${escapeXml(l)}</text>`;
+            curIdY += idLineH;
+          });
+        }
+
+        const textX = isSideLeft ? (codeZoneW + 8) : margin;
+        const maxTextW = isSideLeft ? (width - textX - margin) : (width - codeZoneW - 8 - margin);
         const anchorX = isSideLeft ? textX : (textX + maxTextW);
         const anchorType = isSideLeft ? 'start' : 'end';
 
@@ -563,7 +684,7 @@
           lineHeights.push(h);
           totalTextH += h;
         });
-        if (displayValue) {
+        if (showIdSide) {
           const h = fontSizeId + 6;
           lineHeights.push(h);
           totalTextH += h;
@@ -578,7 +699,7 @@
           textY += lineHeights[idx];
         });
 
-        if (displayValue) {
+        if (showIdSide) {
           textSvg += `<text x="${anchorX}" y="${textY + fontSizeId}" text-anchor="${anchorType}" font-family="monospace" font-weight="bold" font-size="${fontSizeId}" fill="${lineColor}">${escapeXml(qrText)}</text>`;
         }
       }
@@ -892,6 +1013,7 @@
     renderToCanvas,
     renderQRCodeToCanvas,
     renderQRCodeToSVG,
+    sliceTextChunks,
     extractDetailLines,
     toDataURL,
     toSVGString,
