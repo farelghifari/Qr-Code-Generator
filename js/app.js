@@ -7,14 +7,122 @@ document.addEventListener('DOMContentLoaded', () => {
   'use strict';
 
   const ITEMS_STORAGE_KEY = 'barcode_studio_items_v3';
+  const BATCHES_STORAGE_KEY = 'barcode_studio_batches_v1';
+
+  // Template Presets Dictionary
+  const TEMPLATE_PRESETS = {
+    'tj-107': {
+      name: 'Tom & Jerry No. 107',
+      paperWidthMm: 165,
+      paperHeightMm: 210,
+      labelWidthMm: 50,
+      labelHeightMm: 18,
+      cols: 3,
+      rows: 10,
+      topMarginMm: 7,
+      leftMarginMm: 3,
+      colGapMm: 5,
+      rowGapMm: 2,
+      description: 'Kertas 16,5 × 21 cm • 3 Kolom × 10 Baris (30 Label)'
+    },
+    'tj-108': {
+      name: 'Tom & Jerry No. 108',
+      paperWidthMm: 165,
+      paperHeightMm: 210,
+      labelWidthMm: 38,
+      labelHeightMm: 18,
+      cols: 4,
+      rows: 10,
+      topMarginMm: 7,
+      leftMarginMm: 3.5,
+      colGapMm: 3,
+      rowGapMm: 2,
+      description: 'Kertas 16,5 × 21 cm • 4 Kolom × 10 Baris (40 Label)'
+    },
+    'tj-121': {
+      name: 'Tom & Jerry No. 121',
+      paperWidthMm: 165,
+      paperHeightMm: 210,
+      labelWidthMm: 75,
+      labelHeightMm: 38,
+      cols: 2,
+      rows: 5,
+      topMarginMm: 10,
+      leftMarginMm: 5,
+      colGapMm: 5,
+      rowGapMm: 2,
+      description: 'Kertas 16,5 × 21 cm • 2 Kolom × 5 Baris (10 Label)'
+    },
+    'a4-3x10': {
+      name: 'Kertas Stiker A4 (3×10)',
+      paperWidthMm: 210,
+      paperHeightMm: 297,
+      labelWidthMm: 70,
+      labelHeightMm: 29.7,
+      cols: 3,
+      rows: 10,
+      topMarginMm: 0,
+      leftMarginMm: 0,
+      colGapMm: 0,
+      rowGapMm: 0,
+      description: 'Kertas A4 21 × 29,7 cm • 3 Kolom × 10 Baris (30 Label)'
+    },
+    'a4-2x7': {
+      name: 'Kertas Stiker A4 (2×7)',
+      paperWidthMm: 210,
+      paperHeightMm: 297,
+      labelWidthMm: 105,
+      labelHeightMm: 42.4,
+      cols: 2,
+      rows: 7,
+      topMarginMm: 0,
+      leftMarginMm: 0,
+      colGapMm: 0,
+      rowGapMm: 0,
+      description: 'Kertas A4 21 × 29,7 cm • 2 Kolom × 7 Baris (14 Label)'
+    },
+    'thermal': {
+      name: 'Printer Thermal Roll',
+      paperWidthMm: 50,
+      paperHeightMm: 30,
+      labelWidthMm: 50,
+      labelHeightMm: 30,
+      cols: 1,
+      rows: 1,
+      topMarginMm: 0,
+      leftMarginMm: 0,
+      colGapMm: 0,
+      rowGapMm: 0,
+      description: 'Thermal Roll 50 × 30 mm • 1 Label per cetak'
+    },
+    'custom': {
+      name: 'Kustom',
+      paperWidthMm: 165,
+      paperHeightMm: 210,
+      labelWidthMm: 50,
+      labelHeightMm: 18,
+      cols: 3,
+      rows: 10,
+      topMarginMm: 7,
+      leftMarginMm: 3,
+      colGapMm: 5,
+      rowGapMm: 2,
+      description: 'Ukuran Disesuaikan Manual'
+    }
+  };
 
   // State
   let currentMode = 'sequential';
   let currentView = 'grid'; // 'grid' | 'management'
-  let generatedItems = [];  // Array of { id, label, format, status: 'pending'|'printed', createdAt }
+  let currentCodeType = 'QR'; // 'QR' (default) | 'CODE128'
+  let generatedItems = [];  // Array of { id, label, brand, gramasi, vault, lemari, laci, kotak, extraRows, batchId, batchName, format, status, createdAt, timestamp }
+  let batches = []; // Array of { id, name, createdAt, format }
+  let activeFolderId = 'all'; // For Grid View filtering
   let lastFilteredItems = [];
   let selectedIds = new Set();
   let currentEditingItem = null;
+  let pregenExtraRows = []; // array of { key, value }
+  let modalExtraRows = []; // array of { key, value }
 
   // DOM Elements - View Switcher
   const tabViewGrid = document.getElementById('tab-view-grid');
@@ -22,6 +130,54 @@ document.addEventListener('DOMContentLoaded', () => {
   const barcodeGridView = document.getElementById('barcode-grid-view');
   const barcodeManagementView = document.getElementById('barcode-management-view');
   const managementCountPill = document.getElementById('management-count-pill');
+
+  // DOM Elements - Batch & Folder
+  const batchNameInput = document.getElementById('batch-name-input');
+  const folderFilterBar = document.getElementById('folder-filter-bar');
+  const folderPillsContainer = document.getElementById('folder-pills-container');
+  const activeFolderTitle = document.getElementById('active-folder-title');
+  const activeFolderCountBadge = document.getElementById('active-folder-count-badge');
+  const btnFolderSheetDownload = document.getElementById('btn-folder-sheet-download');
+  const btnFolderZipDownload = document.getElementById('btn-folder-zip-download');
+
+  // DOM Elements - Code Type Switcher
+  const btnTypeBarcode = document.getElementById('btn-type-barcode');
+  const btnTypeQr = document.getElementById('btn-type-qr');
+  const activeTypeBadge = document.getElementById('active-type-badge');
+  const barcode1dSymbologyGroup = document.getElementById('barcode-1d-symbology-group');
+
+  // DOM Elements - Template Preset & Custom Dimensions
+  const presetTemplateSelect = document.getElementById('preset-template-select');
+  const btnToggleCustomDim = document.getElementById('btn-toggle-custom-dim');
+  const btnCustomDimText = document.getElementById('btn-custom-dim-text');
+  const panelCustomDimensions = document.getElementById('panel-custom-dimensions');
+  const templateSummaryText = document.getElementById('template-summary-text');
+  const templateLabelDimTag = document.getElementById('template-label-dim-tag');
+  const dimTotalCapacityTag = document.getElementById('dim-total-capacity-tag');
+
+  const dimPaperW = document.getElementById('dim-paper-w');
+  const dimPaperH = document.getElementById('dim-paper-h');
+  const dimLabelW = document.getElementById('dim-label-w');
+  const dimLabelH = document.getElementById('dim-label-h');
+  const dimCols = document.getElementById('dim-cols');
+  const dimRows = document.getElementById('dim-rows');
+  const dimMarginTop = document.getElementById('dim-margin-top');
+  const dimMarginLeft = document.getElementById('dim-margin-left');
+  const dimGapCol = document.getElementById('dim-gap-col');
+  const dimGapRow = document.getElementById('dim-gap-row');
+
+  // DOM Elements - Layout & Typography Controls
+  const layoutPositionSelect = document.getElementById('layout-position-select');
+  const fontSizeTitleSlider = document.getElementById('font-size-title-slider');
+  const fontSizeTitleVal = document.getElementById('font-size-title-val');
+  const fontSizeDetailsSlider = document.getElementById('font-size-details-slider');
+  const fontSizeDetailsVal = document.getElementById('font-size-details-val');
+  const fontSizeIdSlider = document.getElementById('font-size-id-slider');
+  const fontSizeIdVal = document.getElementById('font-size-id-val');
+
+  // DOM Elements - Pre-generation Extra Rows
+  const pregenExtraRowsList = document.getElementById('pregen-extra-rows-list');
+  const btnAddPregenRow = document.getElementById('btn-add-pregen-row');
 
   // DOM Elements - Mode Tabs & Panels
   const tabButtons = document.querySelectorAll('.tab-btn');
@@ -108,16 +264,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const singleIdInput = document.getElementById('single-id-input');
   const btnSingleRandomize = document.getElementById('btn-single-randomize');
 
-  // Lock Label Size (Tom & Jerry 107: 18x50mm) Elements & State
-  let isLockedTJ107 = true;
-  const btnToggleLockSize = document.getElementById('btn-toggle-lock-size');
-  const btnLockIcon = document.getElementById('btn-lock-icon');
-  const btnLockText = document.getElementById('btn-lock-text');
-  const badgeLockStatus = document.getElementById('badge-lock-status');
-  const badgeLockWidth = document.getElementById('badge-lock-width');
-  const badgeLockHeight = document.getElementById('badge-lock-height');
-  const lockHintText = document.getElementById('lock-hint-text');
-
   // Barcode Appearance Inputs
   const barcodeFormat = document.getElementById('barcode-format');
   const topLabelInput = document.getElementById('top-label-input');
@@ -147,6 +293,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const statPrintedCount = document.getElementById('stat-printed-count');
   const tableSelectAll = document.getElementById('table-select-all');
   const tableSelectedCountBadge = document.getElementById('table-selected-count-badge');
+  const tableFolderFilter = document.getElementById('table-folder-filter');
   const tableStatusFilter = document.getElementById('table-status-filter');
   const btnBatchMarkPrinted = document.getElementById('btn-batch-mark-printed');
   const btnBatchMarkPending = document.getElementById('btn-batch-mark-pending');
@@ -159,9 +306,20 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnCloseEditModal = document.getElementById('btn-close-edit-modal');
   const btnCancelEdit = document.getElementById('btn-cancel-edit');
   const btnSaveEdit = document.getElementById('btn-save-edit');
-  const editIdInput = document.getElementById('edit-id-input');
-  const editLabelInput = document.getElementById('edit-label-input');
-  const editStatusSelect = document.getElementById('edit-status-select');
+  const modalEditId = document.getElementById('modal-edit-id');
+  const modalEditFormat = document.getElementById('modal-edit-format');
+  const modalEditBrand = document.getElementById('modal-edit-brand');
+  const modalEditGramasi = document.getElementById('modal-edit-gramasi');
+  const modalEditVault = document.getElementById('modal-edit-vault');
+  const modalEditLemari = document.getElementById('modal-edit-lemari');
+  const modalEditLaci = document.getElementById('modal-edit-laci');
+  const modalEditKotak = document.getElementById('modal-edit-kotak');
+  const modalEditBatch = document.getElementById('modal-edit-batch');
+  const modalEditStatus = document.getElementById('modal-edit-status');
+  const modalExtraRowsContainer = document.getElementById('modal-extra-rows-container');
+  const btnAddModalRow = document.getElementById('btn-add-modal-row');
+  const modalPreviewCanvas = document.getElementById('modal-preview-canvas');
+  const modalPreviewDimTag = document.getElementById('modal-preview-dim-tag');
 
   // Print & History Modals & Overlays
   const printModal = document.getElementById('print-modal');
@@ -216,15 +374,38 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // --- STORAGE MANAGEMENT ---
+  function saveBatchesToStorage() {
+    try {
+      localStorage.setItem(BATCHES_STORAGE_KEY, JSON.stringify(batches));
+    } catch (e) {
+      console.warn('Gagal menyimpan batches ke localStorage', e);
+    }
+  }
+
+  function loadBatchesFromStorage() {
+    try {
+      const saved = localStorage.getItem(BATCHES_STORAGE_KEY);
+      if (saved) {
+        batches = JSON.parse(saved);
+      } else {
+        batches = [];
+      }
+    } catch (e) {
+      batches = [];
+    }
+  }
+
   function saveItemsToStorage() {
     try {
       localStorage.setItem(ITEMS_STORAGE_KEY, JSON.stringify(generatedItems));
     } catch (e) {
       console.warn('Gagal menyimpan items ke localStorage', e);
     }
+    saveBatchesToStorage();
   }
 
   function loadItemsFromStorage() {
+    loadBatchesFromStorage();
     try {
       const saved = localStorage.getItem(ITEMS_STORAGE_KEY);
       if (saved) {
@@ -234,6 +415,30 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     } catch (e) {
       generatedItems = [];
+    }
+
+    // Ensure backwards compatibility for batches and item attributes
+    if (generatedItems.length > 0) {
+      let needsBatchSave = false;
+      generatedItems.forEach(item => {
+        if (!item.batchId) {
+          const defaultBatchName = 'Batch Awal';
+          let defB = batches.find(b => b.name === defaultBatchName);
+          if (!defB) {
+            defB = { id: 'batch_default', name: defaultBatchName, createdAt: item.createdAt || 'Awal' };
+            batches.push(defB);
+            needsBatchSave = true;
+          }
+          item.batchId = defB.id;
+          item.batchName = defB.name;
+        }
+        if (!Array.isArray(item.extraRows)) {
+          item.extraRows = [];
+        }
+      });
+      if (needsBatchSave) {
+        saveBatchesToStorage();
+      }
     }
   }
 
@@ -845,77 +1050,213 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // --- LOCK LABEL SIZE (TOM & JERRY NO. 107: 18mm x 50mm) ---
-  function setLockedTJ107(locked) {
-    isLockedTJ107 = locked;
-    if (isLockedTJ107) {
-      barWidthSlider.value = 2;
-      barWidthVal.textContent = '2';
-      barWidthSlider.disabled = true;
+  // --- TEMPLATE PRESET & CUSTOM DIMENSION LOGIC ---
+  function applyPresetTemplate(presetKey) {
+    const preset = TEMPLATE_PRESETS[presetKey];
+    if (!preset) return;
 
-      barHeightSlider.value = 45;
-      barHeightVal.textContent = '45';
-      barHeightSlider.disabled = true;
+    if (dimPaperW) dimPaperW.value = preset.paperWidthMm;
+    if (dimPaperH) dimPaperH.value = preset.paperHeightMm;
+    if (dimLabelW) dimLabelW.value = preset.labelWidthMm;
+    if (dimLabelH) dimLabelH.value = preset.labelHeightMm;
+    if (dimCols) dimCols.value = preset.cols;
+    if (dimRows) dimRows.value = preset.rows;
+    if (dimMarginTop) dimMarginTop.value = preset.topMarginMm;
+    if (dimMarginLeft) dimMarginLeft.value = preset.leftMarginMm;
+    if (dimGapCol) dimGapCol.value = preset.colGapMm;
+    if (dimGapRow) dimGapRow.value = preset.rowGapMm;
 
-      if (btnLockText) btnLockText.textContent = 'Terkunci';
-      if (btnLockIcon) btnLockIcon.textContent = '🔒';
-      if (badgeLockStatus) {
-        badgeLockStatus.textContent = 'LOCKED';
-        badgeLockStatus.className = 'bg-amber-200 text-amber-950 text-[10px] font-extrabold px-1.5 py-0.5 rounded border border-amber-300';
-      }
-      if (badgeLockWidth) badgeLockWidth.classList.remove('hidden');
-      if (badgeLockHeight) badgeLockHeight.classList.remove('hidden');
-      if (lockHintText) {
-        lockHintText.innerHTML = '🔒 <strong>Ukuran Dikunci:</strong> Barcode dipastikan muat presisi di stiker 18 mm × 50 mm tanpa terpotong batas stiker.';
-      }
-    } else {
-      barWidthSlider.disabled = false;
-      barHeightSlider.disabled = false;
+    if (templateSummaryText) templateSummaryText.textContent = preset.description;
+    if (templateLabelDimTag) templateLabelDimTag.textContent = `${preset.labelWidthMm} × ${preset.labelHeightMm} mm`;
+    if (dimTotalCapacityTag) dimTotalCapacityTag.textContent = `${preset.cols * preset.rows} label / lembar`;
 
-      if (btnLockText) btnLockText.textContent = 'Kustom';
-      if (btnLockIcon) btnLockIcon.textContent = '🔓';
-      if (badgeLockStatus) {
-        badgeLockStatus.textContent = 'MANUAL';
-        badgeLockStatus.className = 'bg-slate-200 text-slate-700 text-[10px] font-extrabold px-1.5 py-0.5 rounded border border-slate-300';
-      }
-      if (badgeLockWidth) badgeLockWidth.classList.add('hidden');
-      if (badgeLockHeight) badgeLockHeight.classList.add('hidden');
-      if (lockHintText) {
-        lockHintText.innerHTML = '🔓 <strong>Mode Manual:</strong> Anda dapat menggeser ketebalan dan tinggi barcode secara bebas.';
-      }
+    if (presetKey === 'custom') {
+      if (panelCustomDimensions) panelCustomDimensions.classList.remove('hidden');
     }
-    updateLiveBarcodeStyles();
+
+    updatePrintSheetSelector();
+    renderAllViews();
   }
 
-  if (btnToggleLockSize) {
-    btnToggleLockSize.addEventListener('click', () => {
-      setLockedTJ107(!isLockedTJ107);
-      showToast(isLockedTJ107 
-        ? 'Ukuran barcode dikunci ke stiker Tom & Jerry 107 (18 × 50 mm)!'
-        : 'Kunci ukuran dibuka. Anda dapat menyesuaikan slider secara manual.'
-      );
+  if (presetTemplateSelect) {
+    presetTemplateSelect.addEventListener('change', (e) => {
+      applyPresetTemplate(e.target.value);
+    });
+  }
+
+  if (btnToggleCustomDim) {
+    btnToggleCustomDim.addEventListener('click', () => {
+      if (!panelCustomDimensions) return;
+      const isHidden = panelCustomDimensions.classList.contains('hidden');
+      panelCustomDimensions.classList.toggle('hidden', !isHidden);
+      if (btnCustomDimText) {
+        btnCustomDimText.textContent = isHidden ? 'Tutup Dimensi' : 'Kustom Dimensi';
+      }
+      if (isHidden && presetTemplateSelect) {
+        presetTemplateSelect.value = 'custom';
+      }
+    });
+  }
+
+  // Recalculate capacity tag when custom inputs change
+  const dimInputs = [dimPaperW, dimPaperH, dimLabelW, dimLabelH, dimCols, dimRows, dimMarginTop, dimMarginLeft, dimGapCol, dimGapRow];
+  dimInputs.forEach(inp => {
+    if (inp) {
+      inp.addEventListener('input', () => {
+        if (presetTemplateSelect && presetTemplateSelect.value !== 'custom') {
+          presetTemplateSelect.value = 'custom';
+        }
+        const c = parseInt(dimCols ? dimCols.value : '3', 10) || 1;
+        const r = parseInt(dimRows ? dimRows.value : '10', 10) || 1;
+        const lw = parseFloat(dimLabelW ? dimLabelW.value : '50') || 50;
+        const lh = parseFloat(dimLabelH ? dimLabelH.value : '18') || 18;
+        if (dimTotalCapacityTag) dimTotalCapacityTag.textContent = `${c * r} label / lembar`;
+        if (templateLabelDimTag) templateLabelDimTag.textContent = `${lw} × ${lh} mm`;
+        if (templateSummaryText) templateSummaryText.textContent = `Kustom • ${c} Kolom × ${r} Baris (${c * r} Label)`;
+        updatePrintSheetSelector();
+        renderAllViews();
+      });
+    }
+  });
+
+  // --- CODE TYPE SWITCHER (1D BARCODE vs QR CODE) ---
+  function setCodeType(type) {
+    currentCodeType = type;
+    if (type === 'QR') {
+      if (btnTypeQr) btnTypeQr.classList.add('active');
+      if (btnTypeBarcode) btnTypeBarcode.classList.remove('active');
+      if (activeTypeBadge) {
+        activeTypeBadge.textContent = 'QR Code Aktif';
+        activeTypeBadge.className = 'text-[10px] text-indigo-600 bg-indigo-50 px-1.5 py-0.2 rounded font-semibold';
+      }
+      if (barcode1dSymbologyGroup) barcode1dSymbologyGroup.classList.add('hidden');
+      const dimGroup = document.getElementById('dimensions-control-group');
+      if (dimGroup) dimGroup.classList.add('hidden');
+    } else {
+      if (btnTypeBarcode) btnTypeBarcode.classList.add('active');
+      if (btnTypeQr) btnTypeQr.classList.remove('active');
+      if (activeTypeBadge) {
+        activeTypeBadge.textContent = 'Barcode 1D Aktif';
+        activeTypeBadge.className = 'text-[10px] text-amber-800 bg-amber-100 px-1.5 py-0.2 rounded font-semibold';
+      }
+      if (barcode1dSymbologyGroup) barcode1dSymbologyGroup.classList.remove('hidden');
+      const dimGroup = document.getElementById('dimensions-control-group');
+      if (dimGroup) dimGroup.classList.remove('hidden');
+    }
+    renderAllViews();
+  }
+
+  if (btnTypeBarcode) btnTypeBarcode.addEventListener('click', () => setCodeType('CODE128'));
+  if (btnTypeQr) btnTypeQr.addEventListener('click', () => setCodeType('QR'));
+
+  // --- LAYOUT & TYPOGRAPHY LISTENERS ---
+  if (layoutPositionSelect) {
+    layoutPositionSelect.addEventListener('change', () => {
+      renderAllViews();
+    });
+  }
+
+  if (fontSizeTitleSlider) {
+    fontSizeTitleSlider.addEventListener('input', (e) => {
+      if (fontSizeTitleVal) fontSizeTitleVal.textContent = `${e.target.value} pt`;
+      renderAllViews();
+    });
+  }
+
+  if (fontSizeDetailsSlider) {
+    fontSizeDetailsSlider.addEventListener('input', (e) => {
+      if (fontSizeDetailsVal) fontSizeDetailsVal.textContent = `${e.target.value} pt`;
+      renderAllViews();
+    });
+  }
+
+  if (fontSizeIdSlider) {
+    fontSizeIdSlider.addEventListener('input', (e) => {
+      if (fontSizeIdVal) fontSizeIdVal.textContent = `${e.target.value} pt`;
+      renderAllViews();
+    });
+  }
+
+  // --- PRE-GENERATION EXTRA DETAIL ROWS ---
+  function renderPregenRows() {
+    if (!pregenExtraRowsList) return;
+    pregenExtraRowsList.innerHTML = '';
+    pregenExtraRows.forEach((row, idx) => {
+      const div = document.createElement('div');
+      div.className = 'flex items-center gap-1.5';
+      div.innerHTML = `
+        <input type="text" placeholder="Nama Info (cth: Kadar)" value="${escapeHtml(row.key)}" class="pregen-row-key flex-1 px-2 py-1 border border-slate-200 rounded text-xs outline-none">
+        <input type="text" placeholder="Nilai (cth: 99.99%)" value="${escapeHtml(row.value)}" class="pregen-row-val flex-1 px-2 py-1 border border-slate-200 rounded text-xs outline-none">
+        <button type="button" class="btn-remove-pregen-row text-slate-400 hover:text-rose-600 p-1 text-xs font-bold" title="Hapus baris">✕</button>
+      `;
+
+      div.querySelector('.pregen-row-key').addEventListener('input', (e) => {
+        pregenExtraRows[idx].key = e.target.value;
+      });
+      div.querySelector('.pregen-row-val').addEventListener('input', (e) => {
+        pregenExtraRows[idx].value = e.target.value;
+      });
+      div.querySelector('.btn-remove-pregen-row').addEventListener('click', () => {
+        pregenExtraRows.splice(idx, 1);
+        renderPregenRows();
+      });
+
+      pregenExtraRowsList.appendChild(div);
+    });
+  }
+
+  if (btnAddPregenRow) {
+    btnAddPregenRow.addEventListener('click', () => {
+      pregenExtraRows.push({ key: '', value: '' });
+      renderPregenRows();
     });
   }
 
   // --- GET BARCODE RENDER OPTIONS ---
   function getRenderOptions() {
-    const w = isLockedTJ107 ? 2 : parseFloat(barWidthSlider.value);
-    const h = isLockedTJ107 ? 45 : parseInt(barHeightSlider.value, 10);
+    const isQR = currentCodeType === 'QR';
+    const labelW = parseFloat(dimLabelW ? dimLabelW.value : '50') || 50;
+    const labelH = parseFloat(dimLabelH ? dimLabelH.value : '18') || 18;
+    const paperW = parseFloat(dimPaperW ? dimPaperW.value : '165') || 165;
+    const paperH = parseFloat(dimPaperH ? dimPaperH.value : '210') || 210;
+    const cols = parseInt(dimCols ? dimCols.value : '3', 10) || 3;
+    const rows = parseInt(dimRows ? dimRows.value : '10', 10) || 10;
+    const marginTop = parseFloat(dimMarginTop ? dimMarginTop.value : '7') || 7;
+    const marginLeft = parseFloat(dimMarginLeft ? dimMarginLeft.value : '3') || 3;
+    const gapCol = parseFloat(dimGapCol ? dimGapCol.value : '5') || 5;
+    const gapRow = parseFloat(dimGapRow ? dimGapRow.value : '2') || 2;
+
+    const layoutPos = layoutPositionSelect ? layoutPositionSelect.value : 'side-left';
+    const fsTitle = parseInt(fontSizeTitleSlider ? fontSizeTitleSlider.value : '10', 10) || 10;
+    const fsDetails = parseInt(fontSizeDetailsSlider ? fontSizeDetailsSlider.value : '8', 10) || 8;
+    const fsId = parseInt(fontSizeIdSlider ? fontSizeIdSlider.value : '8', 10) || 8;
+
+    const chosenFormat = isQR ? 'QR' : (barcodeFormat ? barcodeFormat.value : 'CODE128');
 
     return {
-      format: barcodeFormat.value,
-      topLabel: topLabelInput.value.trim(),
-      barWidth: w,
-      height: h,
-      displayValue: showTextCheckbox.checked,
-      margin: 10,
-      fontSize: 12,
-      fontFamily: 'monospace',
+      format: chosenFormat,
+      codeType: currentCodeType,
+      topLabel: topLabelInput ? topLabelInput.value.trim() : '',
+      labelWidthMm: labelW,
+      labelHeightMm: labelH,
+      paperWidthMm: paperW,
+      paperHeightMm: paperH,
+      cols: cols,
+      rows: rows,
+      topMarginMm: marginTop,
+      leftMarginMm: marginLeft,
+      colGapMm: gapCol,
+      rowGapMm: gapRow,
+      layoutPosition: layoutPos,
+      fontSizeTitle: fsTitle,
+      fontSizeDetails: fsDetails,
+      fontSizeId: fsId,
+      displayValue: showTextCheckbox ? showTextCheckbox.checked : true,
+      barWidth: parseFloat(barWidthSlider ? barWidthSlider.value : '2') || 2,
+      height: parseInt(barHeightSlider ? barHeightSlider.value : '45', 10) || 45,
+      margin: 6,
       lineColor: '#0f172a',
-      backgroundColor: '#ffffff',
-      isLockedTJ107: isLockedTJ107,
-      labelWidthMm: 50,
-      labelHeightMm: 18
+      backgroundColor: '#ffffff'
     };
   }
 
@@ -999,15 +1340,43 @@ document.addEventListener('DOMContentLoaded', () => {
               seenInBatch.add(val);
 
               let rowLabel = '';
+              let brandVal = '';
+              let gramasiVal = '';
+              let vaultVal = '';
+              let lemariVal = '';
+              let laciVal = '';
+              let kotakVal = '';
+
               if (isGold) {
                 rowLabel = formatGoldRowLabel(row, is2Lines);
+                if (goldBrandHarta && goldBrandHarta.checked) brandVal = 'Harta';
+                else if (goldBrandAntam && goldBrandAntam.checked) brandVal = 'Antam';
+                else if (goldBrandCustomInput && goldBrandCustomInput.value.trim()) brandVal = goldBrandCustomInput.value.trim();
+
+                const cGramasi = parseInt(goldColGramasi ? goldColGramasi.value : '-1', 10);
+                const cVault = parseInt(goldColVault ? goldColVault.value : '-1', 10);
+                const cLemari = parseInt(goldColLemari ? goldColLemari.value : '-1', 10);
+                const cLaci = parseInt(goldColLaci ? goldColLaci.value : '-1', 10);
+                const cKotak = parseInt(goldColKotak ? goldColKotak.value : '-1', 10);
+
+                gramasiVal = cGramasi >= 0 && row[cGramasi] !== undefined ? String(row[cGramasi]).trim() : '';
+                vaultVal = cVault >= 0 && row[cVault] !== undefined ? String(row[cVault]).trim() : '';
+                lemariVal = cLemari >= 0 && row[cLemari] !== undefined ? String(row[cLemari]).trim() : '';
+                laciVal = cLaci >= 0 && row[cLaci] !== undefined ? String(row[cLaci]).trim() : '';
+                kotakVal = cKotak >= 0 && row[cKotak] !== undefined ? String(row[cKotak]).trim() : '';
               } else {
                 rowLabel = (colLabelIdx >= 0 && row[colLabelIdx] !== undefined) ? String(row[colLabelIdx]).trim() : '';
               }
 
               itemsFromExcel.push({
                 id: val,
-                label: rowLabel
+                label: rowLabel,
+                brand: brandVal,
+                gramasi: gramasiVal,
+                vault: vaultVal,
+                lemari: lemariVal,
+                laci: laciVal,
+                kotak: kotakVal
               });
             });
 
@@ -1060,11 +1429,28 @@ document.addEventListener('DOMContentLoaded', () => {
       IdGenerator.registry.addBatch(ids);
 
       const defaultLabel = topLabelInput.value.trim();
-      const format = barcodeFormat.value;
+      const chosenFormat = currentCodeType === 'QR' ? 'QR' : (barcodeFormat ? barcodeFormat.value : 'CODE128');
       const nowFormatted = new Date().toLocaleString('id-ID', {
         day: '2-digit', month: '2-digit', year: 'numeric',
         hour: '2-digit', minute: '2-digit'
       });
+
+      // Grouping ke dalam Folder / Batch
+      const customBatchName = batchNameInput ? batchNameInput.value.trim() : '';
+      const finalBatchName = customBatchName || `Batch ${nowFormatted}`;
+      let targetBatch = batches.find(b => b.name.toLowerCase() === finalBatchName.toLowerCase());
+      if (!targetBatch) {
+        targetBatch = {
+          id: 'batch_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+          name: finalBatchName,
+          createdAt: nowFormatted,
+          format: chosenFormat
+        };
+        batches.push(targetBatch);
+        saveBatchesToStorage();
+      }
+
+      const pregenClean = pregenExtraRows.filter(r => r.key.trim() || r.value.trim()).map(r => ({ ...r }));
 
       // Tambahkan item baru ke generatedItems
       let newItems = [];
@@ -1072,7 +1458,16 @@ document.addEventListener('DOMContentLoaded', () => {
         newItems = customExcelItemsToGenerate.map(it => ({
           id: it.id,
           label: it.label || defaultLabel,
-          format: format,
+          brand: it.brand || '',
+          gramasi: it.gramasi || '',
+          vault: it.vault || '',
+          lemari: it.lemari || '',
+          laci: it.laci || '',
+          kotak: it.kotak || '',
+          extraRows: [...pregenClean],
+          batchId: targetBatch.id,
+          batchName: targetBatch.name,
+          format: chosenFormat,
           status: 'pending',
           createdAt: nowFormatted,
           timestamp: Date.now()
@@ -1081,7 +1476,16 @@ document.addEventListener('DOMContentLoaded', () => {
         newItems = ids.map(id => ({
           id,
           label: defaultLabel,
-          format,
+          brand: '',
+          gramasi: '',
+          vault: '',
+          lemari: '',
+          laci: '',
+          kotak: '',
+          extraRows: [...pregenClean],
+          batchId: targetBatch.id,
+          batchName: targetBatch.name,
+          format: chosenFormat,
           status: 'pending',
           createdAt: nowFormatted,
           timestamp: Date.now()
@@ -1089,33 +1493,132 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       generatedItems.push(...newItems);
+      activeFolderId = targetBatch.id; // Otomatis fokus ke folder yang baru dibuat di Grid view
       saveItemsToStorage();
+
+      if (batchNameInput) batchNameInput.value = '';
 
       updateFilteredItems();
       renderAllViews();
-      showToast(`Berhasil menambahkan ${ids.length} barcode dengan nomor identitas unik!`);
+      showToast(`Berhasil menambahkan ${ids.length} label ke folder "${targetBatch.name}"!`);
     } catch (err) {
       console.error('Terjadi kesalahan saat generate barcode:', err);
       showToast('Gagal memproses barcode: ' + err.message, 'error');
     }
   }
 
-  // --- FILTER ITEMS (BY SEARCH & STATUS) ---
+  // --- FILTER ITEMS (BY SEARCH, FOLDER & STATUS) ---
   function updateFilteredItems() {
     const q = (searchFilterInput.value || '').toLowerCase().trim();
     const statusFilter = tableStatusFilter ? tableStatusFilter.value : 'all';
 
     lastFilteredItems = generatedItems.filter(item => {
-      const matchesSearch = !q || item.id.toLowerCase().includes(q) || (item.label && item.label.toLowerCase().includes(q));
+      const matchesSearch = !q ||
+        item.id.toLowerCase().includes(q) ||
+        (item.label && item.label.toLowerCase().includes(q)) ||
+        (item.brand && item.brand.toLowerCase().includes(q)) ||
+        (item.gramasi && item.gramasi.toLowerCase().includes(q));
       const matchesStatus = statusFilter === 'all' || item.status === statusFilter;
       return matchesSearch && matchesStatus;
     });
   }
 
+  // Items for Grid view (separated by active folder)
+  function getActiveGridItems() {
+    if (activeFolderId === 'all') {
+      return lastFilteredItems;
+    }
+    return lastFilteredItems.filter(item => item.batchId === activeFolderId);
+  }
+
+  // Items for Management view (master list of all folders, or filtered by tableFolderFilter)
+  function getActiveManagementItems() {
+    const folderFilter = tableFolderFilter ? tableFolderFilter.value : 'all';
+    if (folderFilter === 'all') {
+      return lastFilteredItems;
+    }
+    return lastFilteredItems.filter(item => item.batchId === folderFilter);
+  }
+
+  // --- RENDER FOLDER PILLS BAR ---
+  function renderFolderPills() {
+    if (!folderPillsContainer) return;
+    folderPillsContainer.innerHTML = '';
+
+    const countMap = {};
+    generatedItems.forEach(item => {
+      const bId = item.batchId || 'default';
+      countMap[bId] = (countMap[bId] || 0) + 1;
+    });
+
+    // Pill: Semua Folder
+    const allBtn = document.createElement('button');
+    allBtn.type = 'button';
+    allBtn.className = `folder-pill ${activeFolderId === 'all' ? 'active' : ''}`;
+    allBtn.dataset.folderId = 'all';
+    allBtn.innerHTML = `
+      <span>📁</span>
+      <span>Semua Folder</span>
+      <span class="pill-count">${generatedItems.length}</span>
+    `;
+    allBtn.addEventListener('click', () => {
+      activeFolderId = 'all';
+      renderAllViews();
+    });
+    folderPillsContainer.appendChild(allBtn);
+
+    // Pill per Folder / Batch
+    batches.forEach(batch => {
+      const bCount = countMap[batch.id] || 0;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `folder-pill ${activeFolderId === batch.id ? 'active' : ''}`;
+      btn.dataset.folderId = batch.id;
+      btn.title = `Folder: ${batch.name} (${bCount} label)`;
+      btn.innerHTML = `
+        <span>📂</span>
+        <span class="truncate max-w-[130px]">${escapeHtml(batch.name)}</span>
+        <span class="pill-count">${bCount}</span>
+      `;
+      btn.addEventListener('click', () => {
+        activeFolderId = batch.id;
+        renderAllViews();
+      });
+      folderPillsContainer.appendChild(btn);
+    });
+
+    // Update active folder title & badge in Grid view
+    if (activeFolderTitle && activeFolderCountBadge) {
+      if (activeFolderId === 'all') {
+        activeFolderTitle.textContent = 'Semua Label';
+        activeFolderCountBadge.textContent = `${generatedItems.length} label`;
+      } else {
+        const b = batches.find(x => x.id === activeFolderId);
+        activeFolderTitle.textContent = b ? b.name : 'Folder Terpilih';
+        const c = countMap[activeFolderId] || 0;
+        activeFolderCountBadge.textContent = `${c} label`;
+      }
+    }
+
+    // Update tableFolderFilter dropdown in Management View
+    if (tableFolderFilter) {
+      const curSelected = tableFolderFilter.value || 'all';
+      tableFolderFilter.innerHTML = '<option value="all">Semua Folder (Master)</option>';
+      batches.forEach(b => {
+        const opt = document.createElement('option');
+        opt.value = b.id;
+        opt.textContent = `${b.name} (${countMap[b.id] || 0} item)`;
+        tableFolderFilter.appendChild(opt);
+      });
+      tableFolderFilter.value = curSelected;
+    }
+  }
+
   // --- RENDER ALL VIEWS (GRID & MANAGEMENT) ---
   function renderAllViews() {
     updateFilteredItems();
-    renderResultsGrid(lastFilteredItems);
+    renderFolderPills();
+    renderResultsGrid(getActiveGridItems());
     renderManagementTable();
     updateStats();
     updatePrintSheetSelector();
@@ -1156,25 +1659,26 @@ document.addEventListener('DOMContentLoaded', () => {
     const headerDiv = document.createElement('div');
     headerDiv.className = 'w-full flex items-center justify-between mb-2 pb-1.5 border-b border-slate-100 text-xs text-slate-500 no-print';
     headerDiv.innerHTML = `
-      <div class="flex items-center gap-1.5">
+      <div class="flex items-center gap-1.5 truncate">
         <span class="font-semibold text-slate-400">#${index + 1}</span>
-        <span class="bg-indigo-50 text-indigo-700 font-mono px-2 py-0.5 rounded text-[11px] font-medium tracking-wide">${escapeHtml(item.id)}</span>
-        <span class="bg-amber-100 text-amber-900 border border-amber-300 text-[9px] font-bold px-1.5 py-0.2 rounded" title="Ukuran Stiker Tom & Jerry 107">18×50mm</span>
+        <span class="bg-indigo-50 text-indigo-700 font-mono px-2 py-0.5 rounded text-[11px] font-medium tracking-wide truncate max-w-[130px]">${escapeHtml(item.id)}</span>
+        <span class="bg-amber-100 text-amber-900 border border-amber-300 text-[9px] font-bold px-1.5 py-0.2 rounded shrink-0">${renderOpts.labelWidthMm}×${renderOpts.labelHeightMm}mm</span>
       </div>
-      <div class="flex items-center gap-1">
+      <div class="flex items-center gap-1 shrink-0">
         ${statusBadgeHtml}
       </div>
     `;
     card.appendChild(headerDiv);
 
-    // Sticker Cutout Container (Simulasi Ukuran Asli 18 mm x 50 mm)
+    // Sticker Cutout Container (Simulasi Ukuran Asli Label)
     const canvasWrap = document.createElement('div');
     canvasWrap.className = 'label-sticker-cutout my-2';
-    canvasWrap.title = 'Ukuran Label: 18 mm × 50 mm (Tom & Jerry 107)';
+    canvasWrap.style.aspectRatio = `${renderOpts.labelWidthMm} / ${renderOpts.labelHeightMm}`;
+    canvasWrap.title = `Ukuran Label: ${renderOpts.labelWidthMm} mm × ${renderOpts.labelHeightMm} mm`;
 
     const cutoutTag = document.createElement('span');
     cutoutTag.className = 'cutout-tag';
-    cutoutTag.textContent = '18×50mm';
+    cutoutTag.textContent = `${renderOpts.labelWidthMm}×${renderOpts.labelHeightMm}mm`;
     canvasWrap.appendChild(cutoutTag);
 
     const canvas = document.createElement('canvas');
@@ -1182,14 +1686,17 @@ document.addEventListener('DOMContentLoaded', () => {
     canvasWrap.appendChild(canvas);
     card.appendChild(canvasWrap);
 
-    // Render Barcode ke Canvas
+    // Render Barcode / QR Code ke Canvas
     try {
-      BarcodeEngine.renderToCanvas(canvas, item.id, {
+      const mergedOpts = {
         ...renderOpts,
-        topLabel: item.label
-      });
+        ...item,
+        format: item.format || renderOpts.format,
+        topLabel: item.label || renderOpts.topLabel
+      };
+      BarcodeEngine.renderToCanvas(canvas, item.id, mergedOpts);
     } catch (err) {
-      console.error('Gagal merender barcode canvas untuk ID:', item.id, err);
+      console.error('Gagal merender canvas untuk ID:', item.id, err);
     }
 
     // Card Actions
@@ -1208,10 +1715,10 @@ document.addEventListener('DOMContentLoaded', () => {
         </button>
       </div>
       <div class="flex items-center gap-1">
-        <button type="button" class="btn-download-png px-2 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 rounded text-[11px] font-bold transition flex items-center gap-0.5" title="Unduh gambar stiker ukuran 18x50mm (300 DPI)">
+        <button type="button" class="btn-download-png px-2 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 rounded text-[11px] font-bold transition flex items-center gap-0.5" title="Unduh gambar stiker label (300 DPI)">
           <span>🏷️</span> PNG
         </button>
-        <button type="button" class="btn-download-svg px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded text-[11px] font-semibold transition" title="Unduh gambar vektor SVG">
+        <button type="button" class="btn-download-svg px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded text-[11px] font-semibold transition" title="Unduh format SVG">
           SVG
         </button>
         <button type="button" class="btn-delete-item p-1 text-slate-400 hover:text-rose-600 rounded transition" title="Hapus Barcode Ini">
@@ -1242,28 +1749,30 @@ document.addEventListener('DOMContentLoaded', () => {
       openEditModal(item);
     });
 
-    // Event: Download PNG (Stiker 18x50mm pada 300 DPI)
+    // Event: Download PNG (Stiker 300 DPI)
     actionsDiv.querySelector('.btn-download-png').addEventListener('click', async () => {
       const curOpts = getRenderOptions();
-      if (BarcodeExporter.downloadSingleStickerPNG && curOpts.isLockedTJ107 !== false) {
-        await BarcodeExporter.downloadSingleStickerPNG(item.id, {
-          ...curOpts,
-          topLabel: item.label
-        }, `stiker_TJ107_18x50mm_${item.id}.png`);
-        showToast(`Stiker PNG 18×50 mm (300 DPI) untuk ${item.id} berhasil diunduh!`);
-      } else {
-        BarcodeExporter.downloadPNG(canvas, `barcode_${item.id}.png`);
-        showToast(`Mengunduh PNG untuk ${item.id}`);
-      }
+      const mergedOpts = {
+        ...curOpts,
+        ...item,
+        format: item.format || curOpts.format,
+        topLabel: item.label || curOpts.topLabel
+      };
+      await BarcodeExporter.downloadSingleStickerPNG(item.id, mergedOpts, `stiker_${curOpts.labelWidthMm}x${curOpts.labelHeightMm}mm_${item.id}.png`);
+      showToast(`Stiker PNG (${curOpts.labelWidthMm}×${curOpts.labelHeightMm} mm) untuk ${item.id} berhasil diunduh!`);
     });
 
     // Event: Download SVG
     actionsDiv.querySelector('.btn-download-svg').addEventListener('click', () => {
-      const svgStr = BarcodeEngine.toSVGString(item.id, {
-        ...renderOpts,
-        topLabel: item.label
-      });
-      BarcodeExporter.downloadSVG(svgStr, `barcode_${item.id}.svg`);
+      const curOpts = getRenderOptions();
+      const mergedOpts = {
+        ...curOpts,
+        ...item,
+        format: item.format || curOpts.format,
+        topLabel: item.label || curOpts.topLabel
+      };
+      const svgStr = BarcodeEngine.toSVGString(item.id, mergedOpts);
+      BarcodeExporter.downloadSVG(svgStr, `stiker_${item.id}.svg`);
       showToast(`Mengunduh SVG untuk ${item.id}`);
     });
 
@@ -1281,7 +1790,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!barcodeTableBody) return;
     barcodeTableBody.innerHTML = '';
 
-    const items = lastFilteredItems;
+    const items = getActiveManagementItems();
 
     if (!items || items.length === 0) {
       if (tableEmptyMessage) tableEmptyMessage.classList.remove('hidden');
@@ -1299,15 +1808,38 @@ document.addEventListener('DOMContentLoaded', () => {
       const isChecked = selectedIds.has(item.id);
       const isPrinted = item.status === 'printed';
 
+      // Brand & Gramasi
+      const brandText = item.brand || '';
+      const gramasiText = item.gramasi || '';
+      const brandGramasiHtml = (brandText || gramasiText)
+        ? `<div><span class="font-bold text-slate-900">${escapeHtml(brandText)}</span> ${gramasiText ? `<span class="text-amber-800 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200 font-semibold text-[10px]">${escapeHtml(gramasiText)}</span>` : ''}</div>`
+        : `<span class="text-slate-400 italic">${escapeHtml(item.label || '-')}</span>`;
+
+      // Lokasi
+      const locationParts = [item.vault, item.lemari, item.laci, item.kotak].filter(Boolean);
+      const locationHtml = locationParts.length > 0
+        ? `<span class="text-slate-700 font-medium text-[11px]">${locationParts.map(escapeHtml).join(' &bull; ')}</span>`
+        : `<span class="text-slate-400">-</span>`;
+
+      // Extra rows chips
+      let extraChipsHtml = '';
+      if (item.extraRows && item.extraRows.length > 0) {
+        extraChipsHtml = item.extraRows.map(r => `
+          <span class="inline-flex items-center gap-1 bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded text-[10px] mr-1 mb-0.5 border border-slate-200">
+            <span class="font-semibold">${escapeHtml(r.key)}:</span>
+            <span>${escapeHtml(r.value)}</span>
+          </span>
+        `).join('');
+      } else {
+        extraChipsHtml = `<span class="text-slate-400 text-[11px]">-</span>`;
+      }
+
       tr.innerHTML = `
         <td class="p-3 text-center">
           <input type="checkbox" class="table-row-checkbox rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer" data-id="${escapeHtml(item.id)}" ${isChecked ? 'checked' : ''}>
         </td>
-        <td class="p-3 text-center font-medium text-slate-400">
-          ${index + 1}
-        </td>
         <td class="p-3 text-center">
-          <canvas class="table-thumb-canvas inline-block border border-slate-200 rounded p-1 bg-white" data-id="${escapeHtml(item.id)}" style="max-height: 38px; max-width: 100px;"></canvas>
+          <canvas class="table-thumb-canvas inline-block border border-slate-200 rounded p-1 bg-white" data-id="${escapeHtml(item.id)}" style="max-height: 38px; max-width: 70px;"></canvas>
         </td>
         <td class="p-3">
           <div class="flex items-center gap-1.5">
@@ -1319,30 +1851,36 @@ document.addEventListener('DOMContentLoaded', () => {
             </button>
           </div>
         </td>
-        <td class="p-3 text-slate-600 font-medium">
-          ${escapeHtml(item.label || '-')}
+        <td class="p-3">
+          ${brandGramasiHtml}
         </td>
         <td class="p-3">
-          <span class="bg-slate-100 text-slate-700 text-[10px] font-semibold px-2 py-0.5 rounded">${escapeHtml(item.format || 'CODE128')}</span>
+          ${locationHtml}
+        </td>
+        <td class="p-3 max-w-[160px]">
+          ${extraChipsHtml}
         </td>
         <td class="p-3 text-center">
-          <button type="button" class="btn-toggle-status-table inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full cursor-pointer transition ${
+          <span class="bg-indigo-50 text-indigo-700 text-[10px] font-bold px-2 py-0.5 rounded border border-indigo-200">${escapeHtml(item.format || 'QR')}</span>
+        </td>
+        <td class="p-3">
+          <span class="bg-slate-100 text-slate-800 text-[10px] font-semibold px-2 py-0.5 rounded-full truncate max-w-[100px] inline-block">${escapeHtml(item.batchName || 'Default')}</span>
+        </td>
+        <td class="p-3 text-center">
+          <button type="button" class="btn-toggle-status-table inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full cursor-pointer transition ${
             isPrinted
               ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
               : 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100'
           }">
-            ${isPrinted ? '✓ Sudah Dicetak' : '⏳ Belum Dicetak'}
+            ${isPrinted ? '✓ Dicetak' : '⏳ Belum'}
           </button>
-        </td>
-        <td class="p-3 text-slate-400 text-[11px]">
-          ${escapeHtml(item.createdAt || '-')}
         </td>
         <td class="p-3 text-right">
           <div class="flex items-center justify-end gap-1.5">
             <button type="button" class="btn-table-edit p-1 text-slate-500 hover:text-indigo-600 hover:bg-slate-100 rounded transition" title="Edit Detail">
               ✏️
             </button>
-            <button type="button" class="btn-table-download px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded text-[11px] transition" title="Unduh PNG">
+            <button type="button" class="btn-table-download px-2 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold rounded text-[11px] transition border border-amber-300" title="Unduh PNG Stiker">
               PNG
             </button>
             <button type="button" class="btn-table-delete p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition" title="Hapus Barcode">
@@ -1356,12 +1894,14 @@ document.addEventListener('DOMContentLoaded', () => {
       const thumbCanvas = tr.querySelector('.table-thumb-canvas');
       if (thumbCanvas) {
         try {
+          const itemFmt = item.format || renderOpts.format;
           BarcodeEngine.renderToCanvas(thumbCanvas, item.id, {
-            format: item.format || renderOpts.format,
+            format: itemFmt,
             barWidth: 1,
-            height: 30,
-            margin: 4,
-            displayValue: false
+            height: 24,
+            margin: 2,
+            displayValue: false,
+            layoutPosition: 'side-left'
           });
         } catch (thumbErr) {
           console.warn('Gagal merender thumbnail tabel:', thumbErr);
@@ -1401,13 +1941,15 @@ document.addEventListener('DOMContentLoaded', () => {
       });
 
       // Download PNG
-      tr.querySelector('.btn-table-download').addEventListener('click', () => {
-        const tempCanvas = document.createElement('canvas');
-        BarcodeEngine.renderToCanvas(tempCanvas, item.id, {
-          ...renderOpts,
-          topLabel: item.label
-        });
-        BarcodeExporter.downloadPNG(tempCanvas, `barcode_${item.id}.png`);
+      tr.querySelector('.btn-table-download').addEventListener('click', async () => {
+        const curOpts = getRenderOptions();
+        const mergedOpts = {
+          ...curOpts,
+          ...item,
+          format: item.format || curOpts.format,
+          topLabel: item.label || curOpts.topLabel
+        };
+        await BarcodeExporter.downloadSingleStickerPNG(item.id, mergedOpts, `stiker_${item.id}.png`);
         showToast(`Mengunduh PNG untuk ${item.id}`);
       });
 
@@ -1422,134 +1964,116 @@ document.addEventListener('DOMContentLoaded', () => {
     syncSelectAllState();
   }
 
-  // --- ITEM STATUS TOGGLING ---
-  function toggleItemStatus(id) {
-    const item = generatedItems.find(x => x.id === id);
-    if (!item) return;
-    item.status = item.status === 'printed' ? 'pending' : 'printed';
-    saveItemsToStorage();
-    renderAllViews();
-    showToast(`Status "${item.id}" diubah menjadi: ${item.status === 'printed' ? 'Sudah Dicetak' : 'Belum Dicetak'}`);
-  }
-
-  // --- DELETE SINGLE ITEM ---
-  function deleteSingleItem(id) {
-    if (!confirm(`Hapus barcode "${id}" dari daftar?`)) return;
-
-    generatedItems = generatedItems.filter(item => item.id !== id);
-    selectedIds.delete(id);
-    IdGenerator.registry.historySet.delete(id);
-    IdGenerator.registry.saveToStorage();
-    saveItemsToStorage();
-
-    renderAllViews();
-    showToast(`Barcode "${id}" berhasil dihapus.`);
-  }
-
-  // --- BATCH SELECTION & ACTIONS ---
-  function syncSelectAllState() {
-    if (!tableSelectAll) return;
-    const currentList = lastFilteredItems;
-    if (currentList.length === 0) {
-      tableSelectAll.checked = false;
-      return;
-    }
-    const allSelected = currentList.every(item => selectedIds.has(item.id));
-    tableSelectAll.checked = allSelected;
-  }
-
-  if (tableSelectAll) {
-    tableSelectAll.addEventListener('change', (e) => {
-      const isChecked = e.target.checked;
-      lastFilteredItems.forEach(item => {
-        if (isChecked) {
-          selectedIds.add(item.id);
-        } else {
-          selectedIds.delete(item.id);
-        }
-      });
+  // Listener untuk filter folder di tabel management
+  if (tableFolderFilter) {
+    tableFolderFilter.addEventListener('change', () => {
       renderManagementTable();
-      updateStats();
     });
   }
 
-  if (btnBatchMarkPrinted) {
-    btnBatchMarkPrinted.addEventListener('click', () => {
-      if (selectedIds.size === 0) {
-        showToast('Pilih setidaknya satu barcode terlebih dahulu.', 'error');
-        return;
-      }
-      generatedItems.forEach(item => {
-        if (selectedIds.has(item.id)) {
-          item.status = 'printed';
-        }
-      });
-      saveItemsToStorage();
-      renderAllViews();
-      showToast(`${selectedIds.size} barcode ditandai sebagai Sudah Dicetak.`);
-    });
-  }
-
-  if (btnBatchMarkPending) {
-    btnBatchMarkPending.addEventListener('click', () => {
-      if (selectedIds.size === 0) {
-        showToast('Pilih setidaknya satu barcode terlebih dahulu.', 'error');
-        return;
-      }
-      generatedItems.forEach(item => {
-        if (selectedIds.has(item.id)) {
-          item.status = 'pending';
-        }
-      });
-      saveItemsToStorage();
-      renderAllViews();
-      showToast(`${selectedIds.size} barcode ditandai sebagai Belum Dicetak.`);
-    });
-  }
-
-  if (btnBatchDelete) {
-    btnBatchDelete.addEventListener('click', () => {
-      if (selectedIds.size === 0) {
-        showToast('Pilih setidaknya satu barcode untuk dihapus.', 'error');
-        return;
-      }
-      if (!confirm(`Hapus ${selectedIds.size} barcode yang terpilih secara permanen?`)) return;
-
-      const deleteCount = selectedIds.size;
-      generatedItems = generatedItems.filter(item => {
-        if (selectedIds.has(item.id)) {
-          IdGenerator.registry.historySet.delete(item.id);
-          return false;
-        }
-        return true;
-      });
-
-      selectedIds.clear();
-      IdGenerator.registry.saveToStorage();
-      saveItemsToStorage();
-
-      renderAllViews();
-      showToast(`Berhasil menghapus ${deleteCount} barcode terpilih.`);
-    });
-  }
-
-  if (tableStatusFilter) {
-    tableStatusFilter.addEventListener('change', () => {
-      renderAllViews();
-    });
-  }
-
-  // --- QUICK EDIT MODAL ---
+  // --- QUICK EDIT MODAL WITH LIVE PREVIEW & DYNAMIC ROWS ---
   function openEditModal(item) {
     currentEditingItem = item;
-    editIdInput.value = item.id;
-    editLabelInput.value = item.label || '';
-    editStatusSelect.value = item.status || 'pending';
+    modalEditId.value = item.id;
+    modalEditFormat.value = item.format || (currentCodeType === 'QR' ? 'QR' : 'CODE128');
+    modalEditBrand.value = item.brand || '';
+    modalEditGramasi.value = item.gramasi || '';
+    modalEditVault.value = item.vault || '';
+    modalEditLemari.value = item.lemari || '';
+    modalEditLaci.value = item.laci || '';
+    modalEditKotak.value = item.kotak || '';
+    modalEditBatch.value = item.batchName || '';
+    modalEditStatus.value = item.status || 'pending';
+
+    modalExtraRows = (item.extraRows || []).map(r => ({ ...r }));
+    renderModalExtraRows();
+
+    const curOpts = getRenderOptions();
+    if (modalPreviewDimTag) {
+      modalPreviewDimTag.textContent = `${curOpts.labelWidthMm} × ${curOpts.labelHeightMm} mm`;
+    }
 
     editBarcodeModal.classList.remove('hidden');
     editBarcodeModal.classList.add('flex');
-    editLabelInput.focus();
+
+    renderModalLivePreview();
   }
+
+  function renderModalExtraRows() {
+    if (!modalExtraRowsContainer) return;
+    modalExtraRowsContainer.innerHTML = '';
+
+    modalExtraRows.forEach((row, idx) => {
+      const rowDiv = document.createElement('div');
+      rowDiv.className = 'flex items-center gap-2 extra-detail-row';
+      rowDiv.innerHTML = `
+        <input type="text" placeholder="Nama Kolom (cth: Kadar / SN)" value="${escapeHtml(row.key)}" class="modal-row-key flex-1 px-2.5 py-1.5 border border-slate-200 rounded-md text-xs outline-none">
+        <input type="text" placeholder="Nilai (cth: 99.99%)" value="${escapeHtml(row.value)}" class="modal-row-val flex-1 px-2.5 py-1.5 border border-slate-200 rounded-md text-xs outline-none">
+        <button type="button" class="btn-remove-modal-row text-slate-400 hover:text-rose-600 p-1 font-bold text-sm" title="Hapus baris ini">✕</button>
+      `;
+
+      rowDiv.querySelector('.modal-row-key').addEventListener('input', (e) => {
+        modalExtraRows[idx].key = e.target.value;
+        renderModalLivePreview();
+      });
+      rowDiv.querySelector('.modal-row-val').addEventListener('input', (e) => {
+        modalExtraRows[idx].value = e.target.value;
+        renderModalLivePreview();
+      });
+      rowDiv.querySelector('.btn-remove-modal-row').addEventListener('click', () => {
+        modalExtraRows.splice(idx, 1);
+        renderModalExtraRows();
+        renderModalLivePreview();
+      });
+
+      modalExtraRowsContainer.appendChild(rowDiv);
+    });
+  }
+
+  if (btnAddModalRow) {
+    btnAddModalRow.addEventListener('click', () => {
+      modalExtraRows.push({ key: '', value: '' });
+      renderModalExtraRows();
+      renderModalLivePreview();
+    });
+  }
+
+  function renderModalLivePreview() {
+    if (!modalPreviewCanvas) return;
+    const curOpts = getRenderOptions();
+    const id = modalEditId ? modalEditId.value.trim() : (currentEditingItem ? currentEditingItem.id : 'TEST');
+    const format = modalEditFormat ? modalEditFormat.value : 'QR';
+    const brand = modalEditBrand ? modalEditBrand.value.trim() : '';
+    const gramasi = modalEditGramasi ? modalEditGramasi.value.trim() : '';
+    const vault = modalEditVault ? modalEditVault.value.trim() : '';
+    const lemari = modalEditLemari ? modalEditLemari.value.trim() : '';
+    const laci = modalEditLaci ? modalEditLaci.value.trim() : '';
+    const kotak = modalEditKotak ? modalEditKotak.value.trim() : '';
+
+    try {
+      BarcodeEngine.renderToCanvas(modalPreviewCanvas, id || 'KODE-PREVIEW', {
+        ...curOpts,
+        format: format,
+        brand: brand,
+        gramasi: gramasi,
+        vault: vault,
+        lemari: lemari,
+        laci: laci,
+        kotak: kotak,
+        extraRows: modalExtraRows.filter(r => r.key.trim() || r.value.trim())
+      });
+    } catch (err) {
+      console.warn('Gagal render live preview modal:', err);
+    }
+  }
+
+  // Modal live inputs triggers
+  [modalEditId, modalEditFormat, modalEditBrand, modalEditGramasi, modalEditVault, modalEditLemari, modalEditLaci, modalEditKotak].forEach(inp => {
+    if (inp) {
+      inp.addEventListener('input', renderModalLivePreview);
+      inp.addEventListener('change', renderModalLivePreview);
+    }
+  });
 
   const closeEditModal = () => {
     editBarcodeModal.classList.add('hidden');
@@ -1563,12 +2087,95 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnSaveEdit) {
     btnSaveEdit.addEventListener('click', () => {
       if (!currentEditingItem) return;
-      currentEditingItem.label = editLabelInput.value.trim();
-      currentEditingItem.status = editStatusSelect.value;
+
+      const newId = modalEditId.value.trim();
+      if (!newId) {
+        showToast('Nomor ID tidak boleh kosong.', 'error');
+        return;
+      }
+
+      // Check ID uniqueness if modified
+      if (newId !== currentEditingItem.id) {
+        if (IdGenerator.registry.has(newId)) {
+          showToast(`Nomor ID "${newId}" sudah terdaftar dalam riwayat. Gunakan ID yang berbeda.`, 'error');
+          return;
+        }
+        IdGenerator.registry.historySet.delete(currentEditingItem.id);
+        IdGenerator.registry.historySet.add(newId);
+        IdGenerator.registry.saveToStorage();
+        currentEditingItem.id = newId;
+      }
+
+      currentEditingItem.format = modalEditFormat.value;
+      currentEditingItem.brand = modalEditBrand.value.trim();
+      currentEditingItem.gramasi = modalEditGramasi.value.trim();
+      currentEditingItem.vault = modalEditVault.value.trim();
+      currentEditingItem.lemari = modalEditLemari.value.trim();
+      currentEditingItem.laci = modalEditLaci.value.trim();
+      currentEditingItem.kotak = modalEditKotak.value.trim();
+      currentEditingItem.status = modalEditStatus.value;
+      currentEditingItem.extraRows = modalExtraRows.filter(r => r.key.trim() || r.value.trim());
+
+      const newBatchName = modalEditBatch.value.trim();
+      if (newBatchName && newBatchName !== currentEditingItem.batchName) {
+        let b = batches.find(x => x.name.toLowerCase() === newBatchName.toLowerCase());
+        if (!b) {
+          b = {
+            id: 'batch_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+            name: newBatchName,
+            createdAt: new Date().toLocaleDateString('id-ID')
+          };
+          batches.push(b);
+          saveBatchesToStorage();
+        }
+        currentEditingItem.batchId = b.id;
+        currentEditingItem.batchName = b.name;
+      }
+
       saveItemsToStorage();
       closeEditModal();
       renderAllViews();
-      showToast(`Perubahan barcode "${currentEditingItem.id}" disimpan.`);
+      showToast(`Perubahan barcode "${currentEditingItem.id}" berhasil disimpan!`);
+    });
+  }
+
+  // --- FOLDER QUICK ACTION BUTTONS ---
+  if (btnFolderSheetDownload) {
+    btnFolderSheetDownload.addEventListener('click', () => {
+      const itemsInFolder = getActiveGridItems();
+      if (!itemsInFolder.length) {
+        showToast('Tidak ada label di folder ini untuk diunduh.', 'error');
+        return;
+      }
+      triggerSheetDownload(0, itemsInFolder);
+    });
+  }
+
+  if (btnFolderZipDownload) {
+    btnFolderZipDownload.addEventListener('click', async () => {
+      const itemsInFolder = getActiveGridItems();
+      if (!itemsInFolder.length) {
+        showToast('Tidak ada label di folder ini untuk diunduh.', 'error');
+        return;
+      }
+
+      loadingOverlay.classList.add('active');
+      loadingText.textContent = `Menyiapkan ${itemsInFolder.length} file barcode folder ke dalam ZIP...`;
+
+      try {
+        const renderOpts = getRenderOptions();
+        const fName = activeFolderId === 'all' ? 'semua_label' : (batches.find(b => b.id === activeFolderId)?.name || 'folder');
+        await BarcodeExporter.downloadBatchZIP(itemsInFolder, renderOpts, (done, total) => {
+          loadingText.textContent = `Memproses (${done}/${total})...`;
+        }, `folder_${fName.replace(/[^a-zA-Z0-9_-]/g, '_')}_${Date.now()}.zip`);
+
+        showToast(`ZIP folder berhasil diunduh (${itemsInFolder.length} file)!`);
+      } catch (err) {
+        console.error(err);
+        showToast('Gagal membuat file ZIP folder.', 'error');
+      } finally {
+        loadingOverlay.classList.remove('active');
+      }
     });
   }
 
@@ -1644,18 +2251,21 @@ document.addEventListener('DOMContentLoaded', () => {
   function updatePrintSheetSelector() {
     if (!printSheetSelect) return;
     const items = lastFilteredItems.length ? lastFilteredItems : generatedItems;
-    const totalSheets = Math.max(1, Math.ceil(items.length / 30));
+    const cols = parseInt(dimCols ? dimCols.value : '3', 10) || 3;
+    const rows = parseInt(dimRows ? dimRows.value : '10', 10) || 10;
+    const capacity = Math.max(1, cols * rows);
+    const totalSheets = Math.max(1, Math.ceil(items.length / capacity));
     const prevVal = parseInt(printSheetSelect.value, 10) || 0;
 
     printSheetSelect.innerHTML = '';
     for (let i = 0; i < totalSheets; i++) {
-      const start = i * 30 + 1;
-      const end = Math.min((i + 1) * 30, items.length);
+      const start = i * capacity + 1;
+      const end = Math.min((i + 1) * capacity, items.length);
       const opt = document.createElement('option');
       opt.value = i;
       opt.textContent = items.length === 0 
-        ? 'Lembar 1 (0 Label)'
-        : `Lembar ${i + 1} (Label ${start} - ${end})`;
+        ? `Lembar 1 (0 / ${capacity} Label)`
+        : `Lembar ${i + 1} (Label ${start} - ${end} / ${capacity})`;
       printSheetSelect.appendChild(opt);
     }
 
@@ -1664,9 +2274,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // --- DOWNLOAD FULL SHEET (30 LABELS TOM & JERRY 107) ---
-  async function triggerSheetDownload(sheetIndex = 0) {
-    const items = lastFilteredItems.length ? lastFilteredItems : generatedItems;
+  // --- DOWNLOAD FULL SHEET (CUSTOM / TOM & JERRY 107) ---
+  async function triggerSheetDownload(sheetIndex = 0, itemsOverride = null) {
+    const items = (itemsOverride && itemsOverride.length)
+      ? itemsOverride
+      : (lastFilteredItems.length ? lastFilteredItems : generatedItems);
     if (!items.length) {
       showToast('Tidak ada barcode untuk diunduh lembarannya.', 'error');
       return;
@@ -1674,9 +2286,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const showBorders = printShowBordersChk ? printShowBordersChk.checked : true;
     const renderOpts = getRenderOptions();
+    const sheetCap = renderOpts.cols * renderOpts.rows;
+    const templateName = (presetTemplateSelect ? presetTemplateSelect.value : 'sheet').replace(/[^a-zA-Z0-9_-]/g, '_');
 
     loadingOverlay.classList.add('active');
-    loadingText.textContent = `Merender Lembar ${sheetIndex + 1} (300 DPI - Tom & Jerry No. 107)...`;
+    loadingText.textContent = `Merender Lembar ${sheetIndex + 1} (${renderOpts.cols}x${renderOpts.rows} - ${renderOpts.labelWidthMm}x${renderOpts.labelHeightMm}mm)...`;
 
     try {
       await BarcodeExporter.downloadFullSheetPNG(
@@ -1684,9 +2298,9 @@ document.addEventListener('DOMContentLoaded', () => {
         renderOpts,
         sheetIndex,
         showBorders,
-        `Lembar_TomJerry_107_Halaman_${sheetIndex + 1}.png`
+        `Lembar_${templateName}_Halaman_${sheetIndex + 1}.png`
       );
-      showToast(`Gambar Lembar ${sheetIndex + 1} (Isi 30 Label) berhasil diunduh!`, 'success');
+      showToast(`Gambar Lembar ${sheetIndex + 1} (${sheetCap} Label) berhasil diunduh!`, 'success');
     } catch (err) {
       console.error('Gagal unduh sheet PNG:', err);
       showToast('Gagal mengunduh lembar: ' + err.message, 'error');

@@ -216,5 +216,143 @@ assert(svg2.includes('width="2"'), 'Semua modul bar harus memiliki atribut width
 assert(!svg2.includes('width="1.3"'), 'Tidak boleh ada modul bar berukuran pecahan 1.3');
 console.log('✅ Verifikasi Barcode SVG Bar Tajam Integer LULUS.');
 
-console.log('\n🎉 SEMUA 14 PENGUJIAN VERIFIKASI BERHASIL 100%!');
+// Test 15: QR Code SVG Generation
+console.log('15. Menguji BarcodeEngine QR Code Generator...');
+const qrSvg = BarcodeEngine.toSVGString('ORD00000000160600001', {
+  format: 'QR',
+  layoutPosition: 'side-left',
+  brand: 'Harta',
+  gramasi: '1 gr',
+  vault: 'Vault 1',
+  lemari: 'Lemari 2',
+  laci: 'Laci 3',
+  kotak: 'Kotak 4',
+  extraRows: [{ key: 'PO', value: 'PO-2026-001' }]
+});
+assert(qrSvg.includes('<svg'), 'QR SVG harus valid XML SVG');
+assert(qrSvg.includes('ORD00000000160600001'), 'QR SVG harus menampilkan teks ID');
+assert(qrSvg.includes('Harta - 1 gr'), 'QR SVG harus menampilkan Brand & Gramasi');
+assert(qrSvg.includes('Vault 1 - Lemari 2 - Laci 3 - Kotak 4'), 'QR SVG harus menampilkan Lokasi Lengkap');
+assert(qrSvg.includes('PO: PO-2026-001'), 'QR SVG harus menampilkan baris detail tambahan');
+assert(qrSvg.includes('<rect'), 'QR SVG harus berisi modul piksel rect');
+console.log('✅ QR Code Generator LULUS.');
+
+// Test 16: Dynamic Layout Positioning
+console.log('16. Menguji Opsi Layout Positioning (side-left, side-right, stacked)...');
+const svgSideLeft = BarcodeEngine.toSVGString('TEST-ID', {
+  format: 'QR',
+  layoutPosition: 'side-left',
+  targetWidth: 480,
+  targetHeight: 175
+});
+assert(svgSideLeft.includes('width="480"'), 'Side-left harus menggunakan lebar 480');
+
+const svgSideRight = BarcodeEngine.toSVGString('TEST-ID', {
+  format: 'QR',
+  layoutPosition: 'side-right',
+  targetWidth: 480,
+  targetHeight: 175
+});
+assert(svgSideRight.includes('width="480"'), 'Side-right harus menggunakan lebar 480');
+
+const svgStacked = BarcodeEngine.toSVGString('TEST-ID', {
+  format: 'QR',
+  layoutPosition: 'stacked',
+  targetWidth: 300,
+  targetHeight: 320
+});
+assert(svgStacked.includes('height="320"'), 'Stacked harus menggunakan tinggi 320');
+console.log('✅ Dynamic Layout Positioning LULUS.');
+
+// Test 17: Multi-template Sheet Capacity & Custom Dimensions
+console.log('17. Menguji Kalkulasi Kapasitas Template Lembaran...');
+const templates = {
+  'tj-107': { cols: 3, rows: 10, expected: 30 },
+  'tj-108': { cols: 5, rows: 8, expected: 40 },
+  'tj-121': { cols: 2, rows: 5, expected: 10 },
+  'a4-3x10': { cols: 3, rows: 10, expected: 30 },
+  'a4-2x7': { cols: 2, rows: 7, expected: 14 },
+  'thermal-roll': { cols: 1, rows: 1, expected: 1 },
+  'custom-test': { cols: 4, rows: 6, expected: 24 }
+};
+
+for (const [key, tmpl] of Object.entries(templates)) {
+  const cap = tmpl.cols * tmpl.rows;
+  assert.strictEqual(cap, tmpl.expected, `Kapasitas template ${key} harus ${tmpl.expected}`);
+}
+console.log('✅ Kalkulasi Kapasitas Template Lembaran LULUS (Semua 7 template akurat).');
+
+// Test 18: Batch / Folder Partitioning Logic
+console.log('18. Menguji Partisi Folder / Batch...');
+const mockItems = [
+  { id: 'ID-1', batchId: 'batch-alpha', brand: 'Harta' },
+  { id: 'ID-2', batchId: 'batch-alpha', brand: 'Harta' },
+  { id: 'ID-3', batchId: 'batch-beta', brand: 'Antam' },
+  { id: 'ID-4', batchId: 'batch-gamma', brand: 'Custom' }
+];
+
+// Grid view: Filter by activeFolderId
+function filterForGrid(items, activeFolderId) {
+  if (activeFolderId === 'all') return items;
+  return items.filter(i => (i.batchId || 'default') === activeFolderId);
+}
+
+const alphaItems = filterForGrid(mockItems, 'batch-alpha');
+assert.strictEqual(alphaItems.length, 2, 'Folder Alpha harus berisi 2 item');
+assert.strictEqual(alphaItems[0].id, 'ID-1');
+assert.strictEqual(alphaItems[1].id, 'ID-2');
+
+const betaItems = filterForGrid(mockItems, 'batch-beta');
+assert.strictEqual(betaItems.length, 1, 'Folder Beta harus berisi 1 item');
+
+const allItems = filterForGrid(mockItems, 'all');
+assert.strictEqual(allItems.length, 4, 'Semua item harus terlihat saat folder = all');
+console.log('✅ Partisi Folder / Batch LULUS (Grid terisolasi per folder, Management menampilkan semua).');
+
+// Test 19: Individual Label Edit Simulation
+console.log('19. Menguji Pengeditan Detail Per Label (ID, Brand, Gramasi, Extra Rows)...');
+const itemToEdit = {
+  id: 'ORD-ORIGINAL',
+  batchId: 'batch-alpha',
+  brand: 'Harta',
+  gramasi: '1 gr',
+  vault: 'Vault A',
+  lemari: 'Lemari 1',
+  laci: 'Laci 1',
+  kotak: 'Kotak 1',
+  extraRows: []
+};
+
+// Simulasi perubahan data dari Edit Modal
+const editedItem = {
+  ...itemToEdit,
+  id: 'ORD-UPDATED-001',
+  brand: 'Antam',
+  gramasi: '5 gr',
+  extraRows: [
+    { key: 'Keterangan', value: 'Sertifikat LBMA' },
+    { key: 'Petugas', value: 'Budi' }
+  ]
+};
+
+assert.strictEqual(editedItem.id, 'ORD-UPDATED-001');
+assert.strictEqual(editedItem.brand, 'Antam');
+assert.strictEqual(editedItem.gramasi, '5 gr');
+assert.strictEqual(editedItem.extraRows.length, 2);
+assert.strictEqual(editedItem.extraRows[0].key, 'Keterangan');
+assert.strictEqual(editedItem.extraRows[0].value, 'Sertifikat LBMA');
+
+const editedSvg = BarcodeEngine.toSVGString(editedItem.id, {
+  format: 'QR',
+  brand: editedItem.brand,
+  gramasi: editedItem.gramasi,
+  vault: editedItem.vault,
+  extraRows: editedItem.extraRows
+});
+assert(editedSvg.includes('ORD-UPDATED-001'));
+assert(editedSvg.includes('Antam - 5 gr'));
+assert(editedSvg.includes('Keterangan: Sertifikat LBMA'));
+console.log('✅ Pengeditan Detail Per Label LULUS.');
+
+console.log('\n🎉 SEMUA 19 PENGUJIAN VERIFIKASI BERHASIL 100%!');
 

@@ -227,9 +227,381 @@
   }
 
   /**
-   * Render Barcode ke Canvas Element
+   * Helper: Mengekstrak baris-baris detail dari objek opsi label (brand, gramasi, lokasi, extra rows)
+   */
+  function extractDetailLines(options) {
+    if (!options) return [];
+    const lines = [];
+    const brand = String(options.brand || '').trim();
+    const gramasi = String(options.gramasi || '').trim();
+    const vault = String(options.vault || '').trim();
+    const lemari = String(options.lemari || '').trim();
+    const laci = String(options.laci || '').trim();
+    const kotak = String(options.kotak || '').trim();
+    const extraRows = options.extraRows || [];
+
+    if (brand || gramasi) {
+      lines.push([brand, gramasi].filter(Boolean).join(' - '));
+    }
+    const locParts = [vault, lemari, laci, kotak].filter(Boolean);
+    if (locParts.length > 0) {
+      lines.push(locParts.join(' - '));
+    }
+
+    if (Array.isArray(extraRows)) {
+      extraRows.forEach(row => {
+        if (!row) return;
+        const k = String(row.key || '').trim();
+        const v = String(row.value || '').trim();
+        if (k && v) {
+          lines.push(`${k}: ${v}`);
+        } else if (v) {
+          lines.push(v);
+        } else if (k) {
+          lines.push(k);
+        }
+      });
+    }
+
+    if (lines.length === 0 && options.topLabel) {
+      return splitTopLabel(options.topLabel);
+    }
+
+    return lines;
+  }
+
+  /**
+   * Render QR Code ke Canvas Element
+   */
+  function renderQRCodeToCanvas(canvas, text, options = {}) {
+    if (!canvas) return;
+    const qrcodeLib = (typeof window !== 'undefined' && window.qrcode) || 
+                      (typeof root !== 'undefined' && root && root.qrcode) || 
+                      (typeof require === 'function' ? (function(){ try { return require('./qrcode.min.js'); } catch(e){ return null; } })() : null);
+
+    const {
+      layoutPosition = 'side-left',
+      targetWidth = 0,
+      targetHeight = 0,
+      margin = 8,
+      displayValue = true,
+      fontSizeTitle = 12,
+      fontSizeDetails = 10,
+      fontSizeId = 11,
+      fontFamily = 'sans-serif',
+      lineColor = '#0f172a',
+      backgroundColor = '#ffffff'
+    } = options;
+
+    const qrText = String(text !== undefined && text !== null ? text : '0').trim() || '0';
+    let qr = null;
+    let count = 25;
+
+    if (typeof qrcodeLib === 'function') {
+      try {
+        qr = qrcodeLib(0, 'M');
+        qr.addData(qrText);
+        qr.make();
+        count = qr.getModuleCount();
+      } catch (e) {
+        try {
+          qr = qrcodeLib(0, 'L');
+          qr.addData(qrText);
+          qr.make();
+          count = qr.getModuleCount();
+        } catch (e2) {
+          console.error('QR creation error:', e2);
+        }
+      }
+    }
+
+    const detailLines = extractDetailLines(options);
+    let width = targetWidth;
+    let height = targetHeight;
+
+    if (!width || !height) {
+      if (layoutPosition.startsWith('side')) {
+        width = 480;
+        height = 175;
+      } else {
+        width = 300;
+        height = 300;
+      }
+    }
+
+    canvas.width = width;
+    canvas.height = height;
+
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+
+    ctx.fillStyle = backgroundColor;
+    ctx.fillRect(0, 0, width, height);
+
+    if (!qr) {
+      ctx.fillStyle = lineColor;
+      ctx.font = '12px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(qrText, width / 2, height / 2);
+      return canvas;
+    }
+
+    if (layoutPosition === 'stacked') {
+      let curY = margin;
+      if (detailLines.length > 0) {
+        ctx.fillStyle = lineColor;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.font = `bold ${fontSizeTitle}px ${fontFamily}`;
+        ctx.fillText(detailLines[0], width / 2, curY);
+        curY += fontSizeTitle + 3;
+
+        if (detailLines.length > 1) {
+          ctx.font = `600 ${fontSizeDetails}px ${fontFamily}`;
+          for (let i = 1; i < detailLines.length; i++) {
+            ctx.fillText(detailLines[i], width / 2, curY);
+            curY += fontSizeDetails + 2;
+          }
+        }
+        curY += 3;
+      }
+
+      const idHeight = displayValue ? (fontSizeId + 6) : 0;
+      const remainH = Math.max(10, height - curY - idHeight - margin);
+      const cellSize = Math.max(1, Math.floor(remainH / count));
+      const qrPixelSize = cellSize * count;
+      const qrX = Math.round((width - qrPixelSize) / 2);
+      const qrY = curY + Math.round((remainH - qrPixelSize) / 2);
+
+      ctx.fillStyle = lineColor;
+      for (let r = 0; r < count; r++) {
+        for (let c = 0; c < count; c++) {
+          if (qr.isDark(r, c)) {
+            ctx.fillRect(qrX + c * cellSize, qrY + r * cellSize, cellSize, cellSize);
+          }
+        }
+      }
+
+      if (displayValue) {
+        ctx.fillStyle = lineColor;
+        ctx.font = `bold ${fontSizeId}px monospace`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillText(qrText, width / 2, qrY + qrPixelSize + 3);
+      }
+    } else {
+      const isSideLeft = layoutPosition !== 'side-right';
+      const availableH = height - (margin * 2);
+      const cellSize = Math.max(1, Math.floor(availableH / count));
+      const qrPixelSize = cellSize * count;
+      const qrY = Math.round((height - qrPixelSize) / 2);
+      const qrX = isSideLeft ? margin : (width - margin - qrPixelSize);
+
+      ctx.fillStyle = lineColor;
+      for (let r = 0; r < count; r++) {
+        for (let c = 0; c < count; c++) {
+          if (qr.isDark(r, c)) {
+            ctx.fillRect(qrX + c * cellSize, qrY + r * cellSize, cellSize, cellSize);
+          }
+        }
+      }
+
+      const textX = isSideLeft ? (qrX + qrPixelSize + 12) : margin;
+      const maxTextW = isSideLeft ? (width - textX - margin) : (qrX - 12 - margin);
+
+      const totalLines = detailLines.length + (displayValue ? 1 : 0);
+      const lineHeights = [];
+      let totalTextH = 0;
+
+      detailLines.forEach((line, idx) => {
+        const sz = idx === 0 ? fontSizeTitle : fontSizeDetails;
+        const h = sz + 4;
+        lineHeights.push(h);
+        totalTextH += h;
+      });
+      if (displayValue) {
+        const h = fontSizeId + 6;
+        lineHeights.push(h);
+        totalTextH += h;
+      }
+
+      let textY = Math.max(margin, Math.round((height - totalTextH) / 2));
+      ctx.fillStyle = lineColor;
+      ctx.textAlign = isSideLeft ? 'left' : 'right';
+      ctx.textBaseline = 'top';
+      const anchorX = isSideLeft ? textX : (textX + maxTextW);
+
+      detailLines.forEach((line, idx) => {
+        const isHeader = idx === 0;
+        ctx.font = isHeader ? `bold ${fontSizeTitle}px ${fontFamily}` : `600 ${fontSizeDetails}px ${fontFamily}`;
+        ctx.fillText(line, anchorX, textY, maxTextW);
+        textY += lineHeights[idx];
+      });
+
+      if (displayValue) {
+        ctx.font = `bold ${fontSizeId}px monospace`;
+        ctx.fillText(qrText, anchorX, textY + 2, maxTextW);
+      }
+    }
+
+    return canvas;
+  }
+
+  /**
+   * Render QR Code ke SVG String
+   */
+  function renderQRCodeToSVG(text, options = {}) {
+    const qrcodeLib = (typeof window !== 'undefined' && window.qrcode) || 
+                      (typeof root !== 'undefined' && root && root.qrcode) || 
+                      (typeof require === 'function' ? (function(){ try { return require('./qrcode.min.js'); } catch(e){ return null; } })() : null);
+
+    const {
+      layoutPosition = 'side-left',
+      targetWidth = 0,
+      targetHeight = 0,
+      margin = 8,
+      displayValue = true,
+      fontSizeTitle = 12,
+      fontSizeDetails = 10,
+      fontSizeId = 11,
+      fontFamily = 'sans-serif',
+      lineColor = '#0f172a',
+      backgroundColor = '#ffffff'
+    } = options;
+
+    const qrText = String(text !== undefined && text !== null ? text : '0').trim() || '0';
+    let qr = null;
+    let count = 25;
+    if (typeof qrcodeLib === 'function') {
+      try {
+        qr = qrcodeLib(0, 'M');
+        qr.addData(qrText);
+        qr.make();
+        count = qr.getModuleCount();
+      } catch (e) {
+        try {
+          qr = qrcodeLib(0, 'L');
+          qr.addData(qrText);
+          qr.make();
+          count = qr.getModuleCount();
+        } catch (e2) {}
+      }
+    }
+
+    const detailLines = extractDetailLines(options);
+    let width = targetWidth;
+    let height = targetHeight;
+    if (!width || !height) {
+      if (layoutPosition.startsWith('side')) {
+        width = 480;
+        height = 175;
+      } else {
+        width = 300;
+        height = 300;
+      }
+    }
+
+    let rects = '';
+    let textSvg = '';
+
+    if (qr) {
+      if (layoutPosition === 'stacked') {
+        let curY = margin;
+        if (detailLines.length > 0) {
+          textSvg += `<text x="${width / 2}" y="${curY + fontSizeTitle}" text-anchor="middle" font-family="${fontFamily}" font-weight="bold" font-size="${fontSizeTitle}" fill="${lineColor}">${escapeXml(detailLines[0])}</text>`;
+          curY += fontSizeTitle + 3;
+          for (let i = 1; i < detailLines.length; i++) {
+            textSvg += `<text x="${width / 2}" y="${curY + fontSizeDetails}" text-anchor="middle" font-family="${fontFamily}" font-weight="600" font-size="${fontSizeDetails}" fill="${lineColor}">${escapeXml(detailLines[i])}</text>`;
+            curY += fontSizeDetails + 2;
+          }
+          curY += 3;
+        }
+        const idHeight = displayValue ? (fontSizeId + 6) : 0;
+        const remainH = Math.max(10, height - curY - idHeight - margin);
+        const cellSize = Math.max(1, Math.floor(remainH / count));
+        const qrPixelSize = cellSize * count;
+        const qrX = Math.round((width - qrPixelSize) / 2);
+        const qrY = curY + Math.round((remainH - qrPixelSize) / 2);
+
+        for (let r = 0; r < count; r++) {
+          for (let c = 0; c < count; c++) {
+            if (qr.isDark(r, c)) {
+              rects += `<rect x="${qrX + c * cellSize}" y="${qrY + r * cellSize}" width="${cellSize}" height="${cellSize}" fill="${lineColor}" />`;
+            }
+          }
+        }
+        if (displayValue) {
+          textSvg += `<text x="${width / 2}" y="${qrY + qrPixelSize + fontSizeId + 2}" text-anchor="middle" font-family="monospace" font-weight="bold" font-size="${fontSizeId}" fill="${lineColor}">${escapeXml(qrText)}</text>`;
+        }
+      } else {
+        const isSideLeft = layoutPosition !== 'side-right';
+        const availableH = height - (margin * 2);
+        const cellSize = Math.max(1, Math.floor(availableH / count));
+        const qrPixelSize = cellSize * count;
+        const qrY = Math.round((height - qrPixelSize) / 2);
+        const qrX = isSideLeft ? margin : (width - margin - qrPixelSize);
+
+        for (let r = 0; r < count; r++) {
+          for (let c = 0; c < count; c++) {
+            if (qr.isDark(r, c)) {
+              rects += `<rect x="${qrX + c * cellSize}" y="${qrY + r * cellSize}" width="${cellSize}" height="${cellSize}" fill="${lineColor}" />`;
+            }
+          }
+        }
+
+        const textX = isSideLeft ? (qrX + qrPixelSize + 12) : margin;
+        const maxTextW = isSideLeft ? (width - textX - margin) : (qrX - 12 - margin);
+        const anchorX = isSideLeft ? textX : (textX + maxTextW);
+        const anchorType = isSideLeft ? 'start' : 'end';
+
+        const lineHeights = [];
+        let totalTextH = 0;
+        detailLines.forEach((line, idx) => {
+          const sz = idx === 0 ? fontSizeTitle : fontSizeDetails;
+          const h = sz + 4;
+          lineHeights.push(h);
+          totalTextH += h;
+        });
+        if (displayValue) {
+          const h = fontSizeId + 6;
+          lineHeights.push(h);
+          totalTextH += h;
+        }
+
+        let textY = Math.max(margin, Math.round((height - totalTextH) / 2));
+        detailLines.forEach((line, idx) => {
+          const isHeader = idx === 0;
+          const sz = isHeader ? fontSizeTitle : fontSizeDetails;
+          const fw = isHeader ? 'bold' : '600';
+          textSvg += `<text x="${anchorX}" y="${textY + sz}" text-anchor="${anchorType}" font-family="${fontFamily}" font-weight="${fw}" font-size="${sz}" fill="${lineColor}">${escapeXml(line)}</text>`;
+          textY += lineHeights[idx];
+        });
+
+        if (displayValue) {
+          textSvg += `<text x="${anchorX}" y="${textY + fontSizeId}" text-anchor="${anchorType}" font-family="monospace" font-weight="bold" font-size="${fontSizeId}" fill="${lineColor}">${escapeXml(qrText)}</text>`;
+        }
+      }
+    }
+
+    return `
+      <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+        <rect width="100%" height="100%" fill="${backgroundColor}" />
+        ${rects}
+        ${textSvg}
+      </svg>
+    `.trim();
+  }
+
+  /**
+   * Render Barcode / QR Code ke Canvas Element
    */
   function renderToCanvas(canvas, text, options = {}) {
+    const fmt = (options.format || 'CODE128').toUpperCase();
+    if (fmt === 'QR' || fmt === 'QRCODE') {
+      return renderQRCodeToCanvas(canvas, text, options);
+    }
+
     const {
       format = 'CODE128',
       barWidth = 2,
@@ -436,6 +808,11 @@
    * Menghasilkan SVG String
    */
   function toSVGString(text, options = {}) {
+    const fmt = (options.format || 'CODE128').toUpperCase();
+    if (fmt === 'QR' || fmt === 'QRCODE') {
+      return renderQRCodeToSVG(text, options);
+    }
+
     const {
       format = 'CODE128',
       barWidth = 2,
@@ -513,6 +890,9 @@
 
   return {
     renderToCanvas,
+    renderQRCodeToCanvas,
+    renderQRCodeToSVG,
+    extractDetailLines,
     toDataURL,
     toSVGString,
     getBarcodeBinary,
