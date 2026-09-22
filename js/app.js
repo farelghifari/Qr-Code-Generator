@@ -387,6 +387,17 @@ document.addEventListener('DOMContentLoaded', () => {
   const syncIndicatorDot = document.getElementById('sync-indicator-dot');
   const syncStatusText = document.getElementById('sync-status-text');
 
+  // Docker / Database Status Modal Elements
+  const dockerDbModal = document.getElementById('docker-db-modal');
+  const btnCloseDockerModal = document.getElementById('btn-close-docker-modal');
+  const btnDismissDockerModal = document.getElementById('btn-dismiss-docker-modal');
+  const btnRefreshDockerModal = document.getElementById('btn-refresh-docker-modal');
+  const dockerModalStatusBadge = document.getElementById('docker-modal-status-badge');
+  const dockerModalTotalItems = document.getElementById('docker-modal-total-items');
+  const dockerModalTotalFolders = document.getElementById('docker-modal-total-folders');
+  const dockerModalFileSize = document.getElementById('docker-modal-file-size');
+  const dockerModalHostPath = document.getElementById('docker-modal-host-path');
+
   const loadingOverlay = document.getElementById('loading-overlay');
   const loadingText = document.getElementById('loading-text');
   const toastContainer = document.getElementById('toast-container');
@@ -2877,9 +2888,78 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Docker / Database Status Modal Logic
+  async function updateDockerModalStatus() {
+    if (!dockerDbModal) return;
+    if (dockerModalStatusBadge) {
+      dockerModalStatusBadge.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800';
+      dockerModalStatusBadge.textContent = '⏳ Memeriksa server...';
+    }
+    try {
+      const resp = await fetch('/api/database/status');
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data && data.success) {
+          if (dockerModalStatusBadge) {
+            dockerModalStatusBadge.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800';
+            dockerModalStatusBadge.textContent = '🟢 Terhubung (Docker / Server Aktif)';
+          }
+          if (dockerModalTotalItems) dockerModalTotalItems.textContent = `${data.totalItems || 0} Barcode`;
+          if (dockerModalTotalFolders) dockerModalTotalFolders.textContent = `${data.folders || 0} Folder`;
+          if (dockerModalFileSize) {
+            const kb = ((data.sizeBytes || 0) / 1024).toFixed(1);
+            dockerModalFileSize.textContent = `${kb} KB`;
+          }
+          if (dockerModalHostPath && data.file) {
+            dockerModalHostPath.textContent = data.file;
+          }
+          return;
+        }
+      }
+      throw new Error('Gagal mengambil status');
+    } catch (e) {
+      if (dockerModalStatusBadge) {
+        dockerModalStatusBadge.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700';
+        dockerModalStatusBadge.textContent = '⚪ Mode Standalone / Offline';
+      }
+      if (dockerModalTotalItems) dockerModalTotalItems.textContent = `${generatedItems.length} Barcode (Lokal)`;
+      if (dockerModalTotalFolders) dockerModalTotalFolders.textContent = `${batches.length} Folder (Lokal)`;
+      if (dockerModalFileSize) dockerModalFileSize.textContent = 'Tersimpan di Browser LocalStorage';
+    }
+  }
+
+  function openDockerModal() {
+    if (!dockerDbModal) return;
+    dockerDbModal.classList.remove('hidden');
+    dockerDbModal.classList.add('flex');
+    updateDockerModalStatus();
+  }
+
+  function closeDockerModal() {
+    if (!dockerDbModal) return;
+    dockerDbModal.classList.add('hidden');
+    dockerDbModal.classList.remove('flex');
+  }
+
+  if (serverSyncBadge) {
+    serverSyncBadge.addEventListener('click', () => {
+      openDockerModal();
+    });
+  }
+
   if (btnSyncServer) {
     btnSyncServer.addEventListener('click', () => {
       syncWithServer(true);
+      updateDockerModalStatus();
+    });
+  }
+
+  if (btnCloseDockerModal) btnCloseDockerModal.addEventListener('click', closeDockerModal);
+  if (btnDismissDockerModal) btnDismissDockerModal.addEventListener('click', closeDockerModal);
+  if (btnRefreshDockerModal) {
+    btnRefreshDockerModal.addEventListener('click', () => {
+      syncWithServer(false);
+      updateDockerModalStatus();
     });
   }
 

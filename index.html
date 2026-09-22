@@ -48,10 +48,10 @@
 
     <!-- Top Stats & Quick Actions -->
     <div class="flex items-center gap-2 sm:gap-3 no-print">
-      <div id="server-sync-badge" class="hidden sm:flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-slate-600 bg-slate-100 border border-slate-200 rounded-lg transition" title="Status sinkronisasi data barcode Docker / Server">
+      <button type="button" id="server-sync-badge" class="hidden sm:flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 hover:border-indigo-300 rounded-lg transition cursor-pointer shadow-2xs" title="Lihat status penyimpanan database Docker / Server">
         <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" id="sync-indicator-dot"></span>
         <span id="sync-status-text">Server: Aktif</span>
-      </div>
+      </button>
       <button type="button" id="btn-total-registered" class="hidden sm:flex items-center gap-2 text-xs text-slate-700 bg-white hover:bg-indigo-50/70 border border-slate-200 hover:border-indigo-300 px-3 py-1.5 rounded-lg cursor-pointer transition shadow-2xs group" title="Klik untuk melihat rincian tabel semua ID terdaftar">
         <span class="text-slate-500 group-hover:text-indigo-600 font-medium">Total Terdaftar:</span>
         <span id="registry-count-badge" class="font-bold text-indigo-600 bg-indigo-50 group-hover:bg-indigo-100 px-1.5 py-0.5 rounded text-[11px]">0 ID</span>
@@ -1335,7 +1335,82 @@
     </div>
   </div>
 
-  <!-- LOADING OVERLAY -->
+  <!-- MODAL DOCKER / DATABASE STATUS & INSPECTOR -->
+  <div id="docker-db-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center text-lg font-bold">
+            🐳
+          </div>
+          <div>
+            <h3 class="font-bold text-slate-900 text-base">Status Database & Docker</h3>
+            <p class="text-[11px] text-slate-500">Penyimpanan permanen barcode multi-device</p>
+          </div>
+        </div>
+        <button type="button" id="btn-close-docker-modal" class="text-slate-400 hover:text-slate-600 text-xl font-bold">&times;</button>
+      </div>
+
+      <div class="space-y-3.5 text-xs text-slate-600">
+        <!-- Status Card -->
+        <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-slate-500 font-medium">Status Sinkronisasi:</span>
+            <span id="docker-modal-status-badge" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+              🟢 Terhubung (Docker / Server Aktif)
+            </span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-slate-500 font-medium">Total Barcode Tersimpan:</span>
+            <span id="docker-modal-total-items" class="font-bold text-slate-900 font-mono">0 Item</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-slate-500 font-medium">Total Folder / Batch:</span>
+            <span id="docker-modal-total-folders" class="font-bold text-slate-900 font-mono">0 Folder</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-slate-500 font-medium">Ukuran File Database:</span>
+            <span id="docker-modal-file-size" class="font-bold text-slate-900 font-mono">0 KB</span>
+          </div>
+        </div>
+
+        <!-- File & Volume Location -->
+        <div class="p-3 bg-sky-50/70 border border-sky-200 rounded-xl space-y-2 text-[11px]">
+          <div class="font-bold text-sky-950 flex items-center gap-1.5">
+            <span>💾</span> Lokasi File Penyimpanan Permanen:
+          </div>
+          <div class="space-y-1">
+            <div class="text-slate-600">File Host (Komputer):</div>
+            <code id="docker-modal-host-path" class="block bg-white px-2 py-1 rounded border border-sky-200 font-mono text-[10px] text-sky-900 break-all select-all">./data/barcodes.json</code>
+          </div>
+          <div class="space-y-1">
+            <div class="text-slate-600">Mount Volume Docker:</div>
+            <code class="block bg-white px-2 py-1 rounded border border-sky-200 font-mono text-[10px] text-sky-900 break-all select-all">/app/data/barcodes.json (volume: ./data:/app/data)</code>
+          </div>
+        </div>
+
+        <!-- Action Download Database File -->
+        <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 p-3 bg-amber-50/70 border border-amber-200 rounded-xl text-[11px]">
+          <div>
+            <div class="font-bold text-amber-950">Unduh Salinan File JSON:</div>
+            <div class="text-amber-800 text-[10px]">Unduh langsung file database mentah untuk backup / verifikasi.</div>
+          </div>
+          <a href="/api/database/download" download="barcodes_docker_db.json" id="btn-download-db-file" class="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold text-xs shadow-xs text-center flex items-center justify-center gap-1">
+            <span>📥</span> Download JSON
+          </a>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between pt-2 border-t border-slate-100">
+        <button type="button" id="btn-refresh-docker-modal" class="px-3 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 rounded-lg text-xs font-semibold flex items-center gap-1">
+          <span>🔄</span> Perbarui Status
+        </button>
+        <button type="button" id="btn-dismiss-docker-modal" class="px-4 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold">
+          Tutup
+        </button>
+      </div>
+    </div>
+  </div>
   <div id="loading-overlay">
     <div class="bg-white p-6 rounded-2xl shadow-xl flex flex-col items-center gap-3">
       <div class="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>

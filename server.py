@@ -352,6 +352,40 @@ class CustomHandler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps(resp).encode('utf-8'))
             return
 
+        if self.path == '/api/database/download':
+            db = get_barcodes_db()
+            data_str = json.dumps(db, ensure_ascii=False, indent=2)
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Content-Disposition', 'attachment; filename="barcodes_docker_db.json"')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate')
+            self.end_headers()
+            self.wfile.write(data_str.encode('utf-8'))
+            return
+
+        if self.path == '/api/database/status':
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate')
+            self.end_headers()
+            db = get_barcodes_db()
+            items = db.get("items", [])
+            file_size = os.path.getsize(DATA_FILE) if os.path.exists(DATA_FILE) else 0
+            info = {
+                "success": True,
+                "file": DATA_FILE,
+                "dockerMount": "/app/data/barcodes.json",
+                "exists": os.path.exists(DATA_FILE),
+                "sizeBytes": file_size,
+                "totalItems": len(items),
+                "folders": db.get("folders", ["Default"]),
+                "updatedAt": db.get("updatedAt")
+            }
+            self.wfile.write(json.dumps(info).encode('utf-8'))
+            return
+
         if self.path == '/api/network-info':
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')

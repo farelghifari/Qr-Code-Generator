@@ -423,67 +423,68 @@
     const charW = ctx.measureText('0').width || (scaledIdSize * 0.62);
 
     if (layoutPosition === 'stacked') {
-      let curY = effMargin;
-      const totalLines = detailLines.length;
-      let effTitleSize = scaledTitleSize;
-      let effDetailSize = scaledDetailSize;
-      if (totalLines > 2) {
-        const factor = Math.max(0.65, Math.min(1.0, (height * 0.45) / (totalLines * (scaledDetailSize + gap3))));
-        effTitleSize = Math.max(Math.round(8 * resScale), Math.round(scaledTitleSize * factor));
-        effDetailSize = Math.max(Math.round(7 * resScale), Math.round(scaledDetailSize * factor));
-      }
+      // STACKED: Detail di atas, QR di tengah, ID 1 baris di bawah QR (pas lebar QR), border sekeliling sama rata
+      const availH = height - (effMargin * 2);
+      const idGap = Math.max(1, Math.round(2 * resScale));
+      const lineGap = Math.max(1, Math.round(2 * resScale));
 
-      if (detailLines.length > 0) {
-        ctx.fillStyle = lineColor;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'top';
-        ctx.font = `bold ${effTitleSize}px ${fontFamily}`;
-        ctx.fillText(detailLines[0], width / 2, curY);
-        curY += effTitleSize + gap3;
-
-        if (detailLines.length > 1) {
-          ctx.font = `600 ${effDetailSize}px ${fontFamily}`;
-          for (let i = 1; i < detailLines.length; i++) {
-            ctx.fillText(detailLines[i], width / 2, curY);
-            curY += effDetailSize + gap2;
-          }
+      const numDetailLines = detailLines.length;
+      let uniformFontSize = Math.round(fontSizeDetails * resScale);
+      let totalDetailH = 0;
+      if (numDetailLines > 0) {
+        const estTextH = (numDetailLines * uniformFontSize) + ((numDetailLines - 1) * lineGap);
+        if (estTextH > availH * 0.45) {
+          uniformFontSize = Math.max(Math.round(6.5 * resScale), Math.floor((availH * 0.45 - ((numDetailLines - 1) * lineGap)) / numDetailLines));
         }
-        curY += gap2;
+        totalDetailH = (numDetailLines * uniformFontSize) + ((numDetailLines - 1) * lineGap);
       }
 
-      // Estimasi awal cellSize & QR width
-      const idLineH = scaledIdSize + gap2;
-      const idHeightEst = showIdUnder ? (3 * idLineH) : (showIdSide ? (scaledIdSize + Math.round(4 * resScale)) : 0);
-      const remainHEst = Math.max(10, height - curY - idHeightEst - effMargin);
-      const rawCellEst = Math.max(1, Math.floor(remainHEst / count));
-      const cellEst = Math.max(1, Math.floor(rawCellEst * scaleFactor));
-      const qrPixelEst = cellEst * count;
+      // ID di bawah QR: Harus tepat 1 baris & disesuaikan besarnya dengan QR
+      let fitIdSize = scaledIdSize;
+      let totalIdH = showIdUnder ? (fitIdSize + idGap) : 0;
 
-      // Adaptasi chunk lebar ID agar presisi sama dengan lebar QR
-      let activeChunk = idSliceChunk;
-      if (idSliceChunk === 'auto') {
-        activeChunk = Math.max(3, Math.floor((qrPixelEst + gap2) / charW));
-      }
-      let idLines = showIdUnder ? sliceTextChunks(qrText, activeChunk) : [];
-      let totalIdH = showIdUnder && idLines.length > 0 ? (idLines.length * idLineH + gap2) : 0;
-
-      const idHeight = showIdUnder ? totalIdH : (showIdSide ? (scaledIdSize + Math.round(4 * resScale)) : 0);
-      const remainH = Math.max(10, height - curY - idHeight - effMargin);
-      const rawCellSize = Math.max(1, Math.floor(remainH / count));
+      // Sisa tinggi untuk QR Code
+      const gapBetween = numDetailLines > 0 ? Math.max(2, Math.round(3 * resScale)) : 0;
+      const remainH = Math.max(10, availH - totalDetailH - gapBetween - totalIdH);
+      const maxBox = Math.min(remainH, width - (effMargin * 2));
+      const rawCellSize = Math.max(1, Math.floor(maxBox / count));
       const cellSize = Math.max(1, Math.floor(rawCellSize * scaleFactor));
       const qrPixelSize = cellSize * count;
 
-      if (idSliceChunk === 'auto') {
-        const finalAuto = Math.max(3, Math.floor((qrPixelSize + gap2) / charW));
-        if (finalAuto !== activeChunk) {
-          activeChunk = finalAuto;
-          idLines = sliceTextChunks(qrText, activeChunk);
+      if (showIdUnder) {
+        const charCount = Math.max(1, qrText.length);
+        const maxFontForWidth = Math.floor(qrPixelSize / (charCount * 0.58));
+        fitIdSize = Math.min(scaledIdSize, maxFontForWidth);
+        fitIdSize = Math.max(Math.round(5.5 * resScale), fitIdSize);
+
+        ctx.font = `bold ${fitIdSize}px monospace`;
+        const measuredW = ctx.measureText(qrText).width;
+        if (measuredW > qrPixelSize && qrPixelSize > 0) {
+          fitIdSize = Math.max(Math.round(5 * resScale), Math.floor(fitIdSize * (qrPixelSize / measuredW)));
         }
+        totalIdH = fitIdSize + idGap;
       }
 
-      const qrX = Math.round((width - qrPixelSize) / 2);
-      const qrY = curY + Math.round((remainH - qrPixelSize) / 2);
+      const totalGroupH = totalDetailH + (numDetailLines > 0 ? gapBetween : 0) + qrPixelSize + (showIdUnder ? totalIdH : 0);
+      let curY = effMargin + Math.max(0, Math.round((availH - totalGroupH) / 2));
 
+      // 1. Render Detail Lines di atas
+      if (numDetailLines > 0) {
+        ctx.fillStyle = lineColor;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        detailLines.forEach((line, idx) => {
+          const isHeader = idx === 0;
+          ctx.font = isHeader ? `bold ${uniformFontSize}px ${fontFamily}` : `600 ${uniformFontSize}px ${fontFamily}`;
+          ctx.fillText(line, width / 2, curY, width - (effMargin * 2));
+          curY += uniformFontSize + lineGap;
+        });
+        curY += (gapBetween - lineGap);
+      }
+
+      // 2. Render Modul QR Code
+      const qrX = Math.round((width - qrPixelSize) / 2);
+      const qrY = curY;
       ctx.fillStyle = lineColor;
       for (let r = 0; r < count; r++) {
         for (let c = 0; c < count; c++) {
@@ -493,72 +494,61 @@
         }
       }
 
-      if (showIdUnder && idLines.length > 0) {
+      // 3. Render ID di bawah QR (1 baris saja)
+      if (showIdUnder) {
         ctx.fillStyle = lineColor;
-        ctx.font = `bold ${scaledIdSize}px monospace`;
+        ctx.font = `bold ${fitIdSize}px monospace`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
-        let curIdY = qrY + qrPixelSize + gap3;
-        idLines.forEach(line => {
-          ctx.fillText(line, width / 2, curIdY);
-          curIdY += idLineH;
-        });
+        const curIdY = qrY + qrPixelSize + idGap;
+        ctx.fillText(qrText, width / 2, curIdY, qrPixelSize);
       } else if (showIdSide || (displayValue && !showIdUnder)) {
         ctx.fillStyle = lineColor;
-        ctx.font = `bold ${scaledIdSize}px monospace`;
+        ctx.font = `bold ${uniformFontSize}px monospace`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
-        ctx.fillText(qrText, width / 2, qrY + qrPixelSize + gap3);
+        ctx.fillText(qrText, width / 2, qrY + qrPixelSize + idGap, width - (effMargin * 2));
       }
     } else {
-      // side-left atau side-right (Proporsional, tidak mepet kiri, ID adaptif lebar QR)
+      // side-left atau side-right (Border seragam melingkar, QR proporsional, ID 1 baris di bawah QR presisi lebar QR)
       const isSideLeft = layoutPosition !== 'side-right';
 
-      // Alokasikan zona kolom QR Code secara proporsional (~35% - 40% dari lebar label)
-      const codeZoneW = Math.max(Math.round(height * 0.9), Math.round(width * 0.38));
-      const codeZoneCenter = isSideLeft 
-        ? Math.round(codeZoneW / 2) 
-        : (width - Math.round(codeZoneW / 2));
+      // 1. Jarak border yang sama melingkar di seluruh label (Top = Bottom = Left = Right = effMargin)
+      const availH = height - (effMargin * 2);
 
-      // 1. Estimasi awal batas kotak QR
-      const maxBoxInitial = Math.max(10, Math.min(height - (effMargin * 2), codeZoneW - (effMargin * 2)));
-      const rawCellSizeEst = Math.max(1, Math.floor(maxBoxInitial / count));
-      const cellSizeEst = Math.max(1, Math.floor(rawCellSizeEst * scaleFactor));
-      const qrPixelEst = cellSizeEst * count;
+      // 2. ID di bawah QR: Tepat 1 baris & disesuaikan besarnya dengan QR (tidak boleh 2 baris)
+      const idGap = Math.max(1, Math.round(2 * resScale));
+      let fitIdSize = scaledIdSize;
+      let totalIdH = showIdUnder ? (fitIdSize + idGap) : 0;
 
-      // 2. Hitung jumlah karakter per baris yang pas dengan lebar QR
-      let activeChunk = idSliceChunk;
-      if (idSliceChunk === 'auto') {
-        activeChunk = Math.max(3, Math.floor((qrPixelEst + gap2) / charW));
-      }
-      let idLines = showIdUnder ? sliceTextChunks(qrText, activeChunk) : [];
-      let idLineH = scaledIdSize + gap2;
-      let totalIdH = showIdUnder && idLines.length > 0 ? (idLines.length * idLineH + gap2) : 0;
-
-      // 3. Hitung ulang ukuran QR presisi setelah totalIdH diketahui
-      const availableH = height - (effMargin * 2) - totalIdH;
-      const availableW = codeZoneW - (effMargin * 2);
-      const maxBox = Math.max(10, Math.min(availableH, availableW));
-
-      const rawCellSize = Math.max(1, Math.floor(maxBox / count));
+      // 3. Hitung modul QR code agar muat presisi di sisa tinggi availH - totalIdH
+      const maxQrBox = Math.max(10, availH - totalIdH);
+      const rawCellSize = Math.max(1, Math.floor(maxQrBox / count));
       const cellSize = Math.max(1, Math.floor(rawCellSize * scaleFactor));
       const qrPixelSize = cellSize * count;
 
-      // 4. Sinkronisasi final karakter per baris dengan ukuran pixel QR yang sebenarnya
-      if (idSliceChunk === 'auto') {
-        const finalAuto = Math.max(3, Math.floor((qrPixelSize + gap2) / charW));
-        if (finalAuto !== activeChunk) {
-          activeChunk = finalAuto;
-          idLines = sliceTextChunks(qrText, activeChunk);
-          totalIdH = idLines.length * idLineH + gap2;
+      // 4. Sesuaikan ukuran font nomor identitas 1 baris agar lebarnya pas dengan lebar QR
+      if (showIdUnder) {
+        const charCount = Math.max(1, qrText.length);
+        const maxFontForWidth = Math.floor(qrPixelSize / (charCount * 0.58));
+        fitIdSize = Math.min(scaledIdSize, maxFontForWidth);
+        fitIdSize = Math.max(Math.round(5.5 * resScale), fitIdSize);
+
+        ctx.font = `bold ${fitIdSize}px monospace`;
+        const measuredIdW = ctx.measureText(qrText).width;
+        if (measuredIdW > qrPixelSize && qrPixelSize > 0) {
+          fitIdSize = Math.max(Math.round(5 * resScale), Math.floor(fitIdSize * (qrPixelSize / measuredIdW)));
         }
+        totalIdH = fitIdSize + idGap;
       }
 
-      // Hitung total tinggi kelompok (QR + Sliced ID) agar vertikal di tengah zona
-      const totalGroupH = qrPixelSize + (totalIdH > 0 ? (totalIdH + gap2) : 0);
-      const groupY = Math.max(effMargin, Math.round((height - totalGroupH) / 2));
-      const qrY = groupY;
-      const qrX = Math.round(codeZoneCenter - (qrPixelSize / 2));
+      // 5. Penempatan QR + ID: Jarak border sama persis
+      const totalGroupH = qrPixelSize + (showIdUnder ? totalIdH : 0);
+      const qrY = effMargin + Math.max(0, Math.round((availH - totalGroupH) / 2));
+      
+      // Jarak dari tepi luar label = effMargin
+      const qrX = isSideLeft ? effMargin : (width - effMargin - qrPixelSize);
+      const qrCenter = qrX + Math.round(qrPixelSize / 2);
 
       // Gambar Modul QR Code
       ctx.fillStyle = lineColor;
@@ -570,70 +560,55 @@
         }
       }
 
-      // Render Nomor ID di bawah QR (Sliced Vertikal menyesuaikan lebar QR)
-      if (showIdUnder && idLines.length > 0) {
+      // Render Nomor ID tepat 1 baris di bawah QR
+      if (showIdUnder) {
         ctx.fillStyle = lineColor;
-        ctx.font = `bold ${scaledIdSize}px monospace`;
+        ctx.font = `bold ${fitIdSize}px monospace`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
-        let curIdY = qrY + qrPixelSize + gap3;
-        idLines.forEach(line => {
-          ctx.fillText(line, codeZoneCenter, curIdY);
-          curIdY += idLineH;
-        });
+        const curIdY = qrY + qrPixelSize + idGap;
+        ctx.fillText(qrText, qrCenter, curIdY, qrPixelSize);
       }
 
-      // Zona Teks Detail Produk (Mendukung hingga 6 baris)
-      const textX = isSideLeft ? (codeZoneW + gap8) : effMargin;
-      const maxTextW = isSideLeft 
-        ? Math.max(20, width - textX - effMargin) 
-        : Math.max(20, (width - codeZoneW - gap8) - effMargin);
+      // 6. Zona Teks Detail Produk: Ukuran font seragam, padding/spacing rapi tidak renggang
+      const colGap = Math.max(4, Math.round(5 * resScale));
+      const textX = isSideLeft ? (qrX + qrPixelSize + colGap) : effMargin;
+      const maxTextW = isSideLeft
+        ? Math.max(20, width - effMargin - textX)
+        : Math.max(20, qrX - colGap - effMargin);
 
-      const totalLines = detailLines.length + (showIdSide ? 1 : 0);
-      const lineHeights = [];
-      let totalTextH = 0;
-
-      // Penyesuaian ukuran font dinamis agar muat rapi hingga 6 baris stiker
-      const availTextH = height - (effMargin * 2);
-      let effTitleSize = scaledTitleSize;
-      let effDetailSize = scaledDetailSize;
-      if (totalLines > 2) {
-        const estTotal = (scaledTitleSize + gap3) + ((totalLines - 1) * (scaledDetailSize + gap3));
-        if (estTotal > availTextH) {
-          const factor = Math.max(0.65, Math.min(1.0, availTextH / estTotal));
-          effTitleSize = Math.max(Math.round(8 * resScale), Math.round(scaledTitleSize * factor));
-          effDetailSize = Math.max(Math.round(7 * resScale), Math.round(scaledDetailSize * factor));
+      const numLines = detailLines.length + (showIdSide ? 1 : 0);
+      if (numLines > 0) {
+        // Spacing/padding baris rapi (tidak terlalu renggang)
+        const lineGap = Math.max(1, Math.round(2 * resScale));
+        
+        // Ukuran font detail diseragamin untuk semua baris
+        let uniformFontSize = Math.round(fontSizeDetails * resScale);
+        const estTotalH = (numLines * uniformFontSize) + ((numLines - 1) * lineGap);
+        if (estTotalH > availH) {
+          uniformFontSize = Math.max(Math.round(6.5 * resScale), Math.floor((availH - ((numLines - 1) * lineGap)) / numLines));
         }
-      }
 
-      detailLines.forEach((line, idx) => {
-        const sz = idx === 0 ? effTitleSize : effDetailSize;
-        const h = sz + gap3;
-        lineHeights.push(h);
-        totalTextH += h;
-      });
-      if (showIdSide) {
-        const h = scaledIdSize + Math.round(4 * resScale);
-        lineHeights.push(h);
-        totalTextH += h;
-      }
+        const totalTextH = (numLines * uniformFontSize) + ((numLines - 1) * lineGap);
+        const textY = effMargin + Math.max(0, Math.round((availH - totalTextH) / 2));
 
-      let textY = Math.max(effMargin, Math.round((height - totalTextH) / 2));
-      ctx.fillStyle = lineColor;
-      ctx.textAlign = isSideLeft ? 'left' : 'right';
-      ctx.textBaseline = 'top';
-      const anchorX = isSideLeft ? textX : (textX + maxTextW);
+        ctx.fillStyle = lineColor;
+        ctx.textAlign = isSideLeft ? 'left' : 'right';
+        ctx.textBaseline = 'top';
+        const anchorX = isSideLeft ? textX : (textX + maxTextW);
 
-      detailLines.forEach((line, idx) => {
-        const isHeader = idx === 0;
-        ctx.font = isHeader ? `bold ${effTitleSize}px ${fontFamily}` : `600 ${effDetailSize}px ${fontFamily}`;
-        ctx.fillText(line, anchorX, textY, maxTextW);
-        textY += lineHeights[idx];
-      });
+        detailLines.forEach((line, idx) => {
+          const isHeader = idx === 0;
+          ctx.font = isHeader ? `bold ${uniformFontSize}px ${fontFamily}` : `600 ${uniformFontSize}px ${fontFamily}`;
+          const curLineY = textY + idx * (uniformFontSize + lineGap);
+          ctx.fillText(line, anchorX, curLineY, maxTextW);
+        });
 
-      if (showIdSide) {
-        ctx.font = `bold ${scaledIdSize}px monospace`;
-        ctx.fillText(qrText, anchorX, textY + gap2, maxTextW);
+        if (showIdSide) {
+          ctx.font = `bold ${uniformFontSize}px monospace`;
+          const curLineY = textY + detailLines.length * (uniformFontSize + lineGap);
+          ctx.fillText(qrText, anchorX, curLineY, maxTextW);
+        }
       }
     }
 
@@ -719,172 +694,144 @@
 
     if (qr) {
       if (layoutPosition === 'stacked') {
-        let curY = effMargin;
-        const totalLines = detailLines.length;
-        let effTitleSize = scaledTitleSize;
-        let effDetailSize = scaledDetailSize;
-        if (totalLines > 2) {
-          const factor = Math.max(0.65, Math.min(1.0, (height * 0.45) / (totalLines * (scaledDetailSize + gap3))));
-          effTitleSize = Math.max(Math.round(8 * resScale), Math.round(scaledTitleSize * factor));
-          effDetailSize = Math.max(Math.round(7 * resScale), Math.round(scaledDetailSize * factor));
-        }
+        const availH = height - (effMargin * 2);
+        const idGap = Math.max(1, Math.round(2 * resScale));
+        const lineGap = Math.max(1, Math.round(2 * resScale));
 
-        if (detailLines.length > 0) {
-          textSvg += `<text x="${width / 2}" y="${curY + effTitleSize}" text-anchor="middle" font-family="${fontFamily}" font-weight="bold" font-size="${effTitleSize}" fill="${lineColor}">${escapeXml(detailLines[0])}</text>`;
-          curY += effTitleSize + gap3;
-          for (let i = 1; i < detailLines.length; i++) {
-            textSvg += `<text x="${width / 2}" y="${curY + effDetailSize}" text-anchor="middle" font-family="${fontFamily}" font-weight="600" font-size="${effDetailSize}" fill="${lineColor}">${escapeXml(detailLines[i])}</text>`;
-            curY += effDetailSize + gap2;
+        const numDetailLines = detailLines.length;
+        let uniformFontSize = Math.round(fontSizeDetails * resScale);
+        let totalDetailH = 0;
+        if (numDetailLines > 0) {
+          const estTextH = (numDetailLines * uniformFontSize) + ((numDetailLines - 1) * lineGap);
+          if (estTextH > availH * 0.45) {
+            uniformFontSize = Math.max(Math.round(6.5 * resScale), Math.floor((availH * 0.45 - ((numDetailLines - 1) * lineGap)) / numDetailLines));
           }
-          curY += gap2;
+          totalDetailH = (numDetailLines * uniformFontSize) + ((numDetailLines - 1) * lineGap);
         }
 
-        const idLineH = scaledIdSize + gap2;
-        const idHeightEst = showIdUnder ? (3 * idLineH) : (showIdSide ? (scaledIdSize + Math.round(4 * resScale)) : 0);
-        const remainHEst = Math.max(10, height - curY - idHeightEst - effMargin);
-        const rawCellEst = Math.max(1, Math.floor(remainHEst / count));
-        const cellEst = Math.max(1, Math.floor(rawCellEst * scaleFactor));
-        const qrPixelEst = cellEst * count;
+        let fitIdSize = scaledIdSize;
+        let totalIdH = showIdUnder ? (fitIdSize + idGap) : 0;
 
-        let activeChunk = idSliceChunk;
-        if (idSliceChunk === 'auto') {
-          activeChunk = Math.max(3, Math.floor((qrPixelEst + gap2) / charW));
-        }
-        let idLines = showIdUnder ? sliceTextChunks(qrText, activeChunk) : [];
-        let totalIdH = showIdUnder && idLines.length > 0 ? (idLines.length * idLineH + gap2) : 0;
-
-        const idHeight = showIdUnder ? totalIdH : (showIdSide ? (scaledIdSize + Math.round(4 * resScale)) : 0);
-        const remainH = Math.max(10, height - curY - idHeight - effMargin);
-        const rawCellSize = Math.max(1, Math.floor(remainH / count));
-        const cellSize = Math.max(1, Math.floor(rawCellSize * scaleFactor));
-        const qrPixelSize = cellSize * count;
-
-        if (idSliceChunk === 'auto') {
-          const finalAuto = Math.max(3, Math.floor((qrPixelSize + gap2) / charW));
-          if (finalAuto !== activeChunk) {
-            activeChunk = finalAuto;
-            idLines = sliceTextChunks(qrText, activeChunk);
-          }
-        }
-
-        const qrX = Math.round((width - qrPixelSize) / 2);
-        const qrY = curY + Math.round((remainH - qrPixelSize) / 2);
-
-        for (let r = 0; r < count; r++) {
-          for (let c = 0; c < count; c++) {
-            if (qr.isDark(r, c)) {
-              rects += `<rect x="${qrX + c * cellSize}" y="${qrY + r * cellSize}" width="${cellSize}" height="${cellSize}" fill="${lineColor}" />`;
-            }
-          }
-        }
-        if (showIdUnder && idLines.length > 0) {
-          let curIdY = qrY + qrPixelSize + scaledIdSize + gap2;
-          idLines.forEach(l => {
-            textSvg += `<text x="${width / 2}" y="${curIdY}" text-anchor="middle" font-family="monospace" font-weight="bold" font-size="${scaledIdSize}" fill="${lineColor}">${escapeXml(l)}</text>`;
-            curIdY += idLineH;
-          });
-        } else if (showIdSide || (displayValue && !showIdUnder)) {
-          textSvg += `<text x="${width / 2}" y="${qrY + qrPixelSize + scaledIdSize + gap2}" text-anchor="middle" font-family="monospace" font-weight="bold" font-size="${scaledIdSize}" fill="${lineColor}">${escapeXml(qrText)}</text>`;
-        }
-      } else {
-        const isSideLeft = layoutPosition !== 'side-right';
-        const codeZoneW = Math.max(Math.round(height * 0.9), Math.round(width * 0.38));
-        const codeZoneCenter = isSideLeft ? Math.round(codeZoneW / 2) : (width - Math.round(codeZoneW / 2));
-
-        const maxBoxInitial = Math.max(10, Math.min(height - (effMargin * 2), codeZoneW - (effMargin * 2)));
-        const rawCellSizeEst = Math.max(1, Math.floor(maxBoxInitial / count));
-        const cellSizeEst = Math.max(1, Math.floor(rawCellSizeEst * scaleFactor));
-        const qrPixelEst = cellSizeEst * count;
-
-        let activeChunk = idSliceChunk;
-        if (idSliceChunk === 'auto') {
-          activeChunk = Math.max(3, Math.floor((qrPixelEst + gap2) / charW));
-        }
-        let idLines = showIdUnder ? sliceTextChunks(qrText, activeChunk) : [];
-        let idLineH = scaledIdSize + gap2;
-        let totalIdH = showIdUnder && idLines.length > 0 ? (idLines.length * idLineH + gap2) : 0;
-
-        const availableH = height - (effMargin * 2) - totalIdH;
-        const availableW = codeZoneW - (effMargin * 2);
-        const maxBox = Math.max(10, Math.min(availableH, availableW));
-
+        const gapBetween = numDetailLines > 0 ? Math.max(2, Math.round(3 * resScale)) : 0;
+        const remainH = Math.max(10, availH - totalDetailH - gapBetween - totalIdH);
+        const maxBox = Math.min(remainH, width - (effMargin * 2));
         const rawCellSize = Math.max(1, Math.floor(maxBox / count));
         const cellSize = Math.max(1, Math.floor(rawCellSize * scaleFactor));
         const qrPixelSize = cellSize * count;
 
-        if (idSliceChunk === 'auto') {
-          const finalAuto = Math.max(3, Math.floor((qrPixelSize + gap2) / charW));
-          if (finalAuto !== activeChunk) {
-            activeChunk = finalAuto;
-            idLines = sliceTextChunks(qrText, activeChunk);
-            totalIdH = idLines.length * idLineH + gap2;
-          }
+        if (showIdUnder) {
+          const charCount = Math.max(1, qrText.length);
+          const maxFontForWidth = Math.floor(qrPixelSize / (charCount * 0.58));
+          fitIdSize = Math.min(scaledIdSize, maxFontForWidth);
+          fitIdSize = Math.max(Math.round(5.5 * resScale), fitIdSize);
+          totalIdH = fitIdSize + idGap;
         }
 
-        const totalGroupH = qrPixelSize + (totalIdH > 0 ? (totalIdH + gap2) : 0);
-        const qrY = Math.max(effMargin, Math.round((height - totalGroupH) / 2));
-        const qrX = Math.round(codeZoneCenter - (qrPixelSize / 2));
+        const totalGroupH = totalDetailH + (numDetailLines > 0 ? gapBetween : 0) + qrPixelSize + (showIdUnder ? totalIdH : 0);
+        let curY = effMargin + Math.max(0, Math.round((availH - totalGroupH) / 2));
+
+        if (numDetailLines > 0) {
+          detailLines.forEach((line, idx) => {
+            const isHeader = idx === 0;
+            const weight = isHeader ? 'bold' : '600';
+            const lineY = curY + idx * (uniformFontSize + lineGap) + uniformFontSize;
+            textSvg += `<text x="${width / 2}" y="${lineY}" text-anchor="middle" font-family="${fontFamily}" font-weight="${weight}" font-size="${uniformFontSize}" fill="${lineColor}">${escapeXml(line)}</text>`;
+          });
+          curY += totalDetailH + gapBetween;
+        }
+
+        const qrX = Math.round((width - qrPixelSize) / 2);
+        const qrY = curY;
 
         for (let r = 0; r < count; r++) {
           for (let c = 0; c < count; c++) {
             if (qr.isDark(r, c)) {
-              rects += `<rect x="${qrX + c * cellSize}" y="${qrY + r * cellSize}" width="${cellSize}" height="${cellSize}" fill="${lineColor}" />`;
+              rects += `<rect x="${qrX + c * cellSize}" y="${qrY + r * cellSize}" width="${cellSize}" height="${cellSize}" fill="${lineColor}"/>`;
             }
           }
         }
 
-        if (showIdUnder && idLines.length > 0) {
-          let curIdY = qrY + qrPixelSize + scaledIdSize + gap2;
-          idLines.forEach(l => {
-            textSvg += `<text x="${codeZoneCenter}" y="${curIdY}" text-anchor="middle" font-family="monospace" font-weight="bold" font-size="${scaledIdSize}" fill="${lineColor}">${escapeXml(l)}</text>`;
-            curIdY += idLineH;
-          });
+        if (showIdUnder) {
+          const idBaselineY = qrY + qrPixelSize + idGap + fitIdSize;
+          const estTextW = qrText.length * fitIdSize * 0.58;
+          const lengthAttr = estTextW > qrPixelSize ? ` textLength="${qrPixelSize}" lengthAdjust="spacingAndGlyphs"` : '';
+          textSvg += `<text x="${width / 2}" y="${idBaselineY}" text-anchor="middle" font-family="monospace" font-weight="bold" font-size="${fitIdSize}" fill="${lineColor}"${lengthAttr}>${escapeXml(qrText)}</text>`;
+        } else if (showIdSide || (displayValue && !showIdUnder)) {
+          const idBaselineY = qrY + qrPixelSize + idGap + uniformFontSize;
+          textSvg += `<text x="${width / 2}" y="${idBaselineY}" text-anchor="middle" font-family="monospace" font-weight="bold" font-size="${uniformFontSize}" fill="${lineColor}">${escapeXml(qrText)}</text>`;
+        }
+      } else {
+        const isSideLeft = layoutPosition !== 'side-right';
+        const availH = height - (effMargin * 2);
+
+        const idGap = Math.max(1, Math.round(2 * resScale));
+        let fitIdSize = scaledIdSize;
+        let totalIdH = showIdUnder ? (fitIdSize + idGap) : 0;
+
+        const maxQrBox = Math.max(10, availH - totalIdH);
+        const rawCellSize = Math.max(1, Math.floor(maxQrBox / count));
+        const cellSize = Math.max(1, Math.floor(rawCellSize * scaleFactor));
+        const qrPixelSize = cellSize * count;
+
+        if (showIdUnder) {
+          const charCount = Math.max(1, qrText.length);
+          const maxFontForWidth = Math.floor(qrPixelSize / (charCount * 0.58));
+          fitIdSize = Math.min(scaledIdSize, maxFontForWidth);
+          fitIdSize = Math.max(Math.round(5.5 * resScale), fitIdSize);
+          totalIdH = fitIdSize + idGap;
         }
 
-        const textX = isSideLeft ? (codeZoneW + gap8) : effMargin;
-        const maxTextW = isSideLeft ? (width - textX - effMargin) : (width - codeZoneW - gap8 - effMargin);
-        const anchorX = isSideLeft ? textX : (textX + maxTextW);
-        const anchorType = isSideLeft ? 'start' : 'end';
+        const totalGroupH = qrPixelSize + (showIdUnder ? totalIdH : 0);
+        const qrY = effMargin + Math.max(0, Math.round((availH - totalGroupH) / 2));
+        const qrX = isSideLeft ? effMargin : (width - effMargin - qrPixelSize);
+        const qrCenter = qrX + Math.round(qrPixelSize / 2);
 
-        const totalLines = detailLines.length + (showIdSide ? 1 : 0);
-        const lineHeights = [];
-        let totalTextH = 0;
-
-        const availTextH = height - (effMargin * 2);
-        let effTitleSize = scaledTitleSize;
-        let effDetailSize = scaledDetailSize;
-        if (totalLines > 2) {
-          const estTotal = (scaledTitleSize + gap3) + ((totalLines - 1) * (scaledDetailSize + gap3));
-          if (estTotal > availTextH) {
-            const factor = Math.max(0.65, Math.min(1.0, availTextH / estTotal));
-            effTitleSize = Math.max(Math.round(8 * resScale), Math.round(scaledTitleSize * factor));
-            effDetailSize = Math.max(Math.round(7 * resScale), Math.round(scaledDetailSize * factor));
+        for (let r = 0; r < count; r++) {
+          for (let c = 0; c < count; c++) {
+            if (qr.isDark(r, c)) {
+              rects += `<rect x="${qrX + c * cellSize}" y="${qrY + r * cellSize}" width="${cellSize}" height="${cellSize}" fill="${lineColor}"/>`;
+            }
           }
         }
 
-        detailLines.forEach((line, idx) => {
-          const sz = idx === 0 ? effTitleSize : effDetailSize;
-          const h = sz + gap3;
-          lineHeights.push(h);
-          totalTextH += h;
-        });
-        if (showIdSide) {
-          const h = scaledIdSize + Math.round(4 * resScale);
-          lineHeights.push(h);
-          totalTextH += h;
+        if (showIdUnder) {
+          const idBaselineY = qrY + qrPixelSize + idGap + fitIdSize;
+          const estTextW = qrText.length * fitIdSize * 0.58;
+          const lengthAttr = estTextW > qrPixelSize ? ` textLength="${qrPixelSize}" lengthAdjust="spacingAndGlyphs"` : '';
+          textSvg += `<text x="${qrCenter}" y="${idBaselineY}" text-anchor="middle" font-family="monospace" font-weight="bold" font-size="${fitIdSize}" fill="${lineColor}"${lengthAttr}>${escapeXml(qrText)}</text>`;
         }
 
-        let textY = Math.max(effMargin, Math.round((height - totalTextH) / 2));
-        detailLines.forEach((line, idx) => {
-          const isHeader = idx === 0;
-          const sz = isHeader ? effTitleSize : effDetailSize;
-          const fw = isHeader ? 'bold' : '600';
-          textSvg += `<text x="${anchorX}" y="${textY + sz}" text-anchor="${anchorType}" font-family="${fontFamily}" font-weight="${fw}" font-size="${sz}" fill="${lineColor}">${escapeXml(line)}</text>`;
-          textY += lineHeights[idx];
-        });
+        const colGap = Math.max(4, Math.round(5 * resScale));
+        const textX = isSideLeft ? (qrX + qrPixelSize + colGap) : effMargin;
+        const maxTextW = isSideLeft
+          ? Math.max(20, width - effMargin - textX)
+          : Math.max(20, qrX - colGap - effMargin);
 
-        if (showIdSide) {
-          textSvg += `<text x="${anchorX}" y="${textY + fontSizeId}" text-anchor="${anchorType}" font-family="monospace" font-weight="bold" font-size="${fontSizeId}" fill="${lineColor}">${escapeXml(qrText)}</text>`;
+        const numLines = detailLines.length + (showIdSide ? 1 : 0);
+        if (numLines > 0) {
+          const lineGap = Math.max(1, Math.round(2 * resScale));
+          let uniformFontSize = Math.round(fontSizeDetails * resScale);
+          const estTotalH = (numLines * uniformFontSize) + ((numLines - 1) * lineGap);
+          if (estTotalH > availH) {
+            uniformFontSize = Math.max(Math.round(6.5 * resScale), Math.floor((availH - ((numLines - 1) * lineGap)) / numLines));
+          }
+
+          const totalTextH = (numLines * uniformFontSize) + ((numLines - 1) * lineGap);
+          const textY = effMargin + Math.max(0, Math.round((availH - totalTextH) / 2));
+          const anchorX = isSideLeft ? textX : (textX + maxTextW);
+          const textAnchor = isSideLeft ? 'start' : 'end';
+
+          detailLines.forEach((line, idx) => {
+            const isHeader = idx === 0;
+            const weight = isHeader ? 'bold' : '600';
+            const lineY = textY + idx * (uniformFontSize + lineGap) + uniformFontSize;
+            textSvg += `<text x="${anchorX}" y="${lineY}" text-anchor="${textAnchor}" font-family="${fontFamily}" font-weight="${weight}" font-size="${uniformFontSize}" fill="${lineColor}">${escapeXml(line)}</text>`;
+          });
+
+          if (showIdSide) {
+            const lineY = textY + detailLines.length * (uniformFontSize + lineGap) + uniformFontSize;
+            textSvg += `<text x="${anchorX}" y="${lineY}" text-anchor="${textAnchor}" font-family="monospace" font-weight="bold" font-size="${uniformFontSize}" fill="${lineColor}">${escapeXml(qrText)}</text>`;
+          }
         }
       }
     }
