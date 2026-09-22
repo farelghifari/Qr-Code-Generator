@@ -229,8 +229,23 @@
   /**
    * Helper: Mengekstrak baris-baris detail dari objek opsi label (brand, gramasi, lokasi, extra rows)
    */
+  /**
+   * Helper: Mengekstrak baris-baris detail dari objek opsi label (brand, gramasi, lokasi, extra rows, labelLines)
+   * Mendukung hingga 6 baris kustom
+   */
   function extractDetailLines(options) {
     if (!options) return [];
+    
+    // 1. Jika ada labelLines eksplisit (array baris 1 s/d 6 yang sudah dikonfigurasi dinamis)
+    if (Array.isArray(options.labelLines) && options.labelLines.length > 0) {
+      const cleanLines = options.labelLines
+        .map(s => String(s !== undefined && s !== null ? s : '').trim())
+        .filter(Boolean);
+      if (cleanLines.length > 0) {
+        return cleanLines.slice(0, 6);
+      }
+    }
+
     const lines = [];
     const brand = String(options.brand || '').trim();
     const gramasi = String(options.gramasi || '').trim();
@@ -264,15 +279,15 @@
     }
 
     if (lines.length === 0 && options.topLabel) {
-      return splitTopLabel(options.topLabel);
+      return splitTopLabel(options.topLabel).slice(0, 6);
     }
 
-    return lines;
+    return lines.slice(0, 6);
   }
 
   /**
    * Memotong / memecah teks ID panjang menjadi beberapa baris vertikal rapi
-   * Mendukung 'auto' (7-8 karakter per baris), angka spesifik (6, 7, 8, 10), atau 'none'
+   * Mendukung 'auto' (menyesuaikan lebar QR), angka spesifik (6, 7, 8, 10), atau 'none'
    */
   function sliceTextChunks(text, chunkSize = 'auto') {
     if (!text) return [];
@@ -299,7 +314,7 @@
   }
 
   /**
-   * Render QR Code ke Canvas Element
+   * Render QR Code ke Canvas Element dengan resolusi tajam HD & ID adaptif di bawah QR
    */
   function renderQRCodeToCanvas(canvas, text, options = {}) {
     if (!canvas) return;
@@ -378,41 +393,73 @@
       return canvas;
     }
 
-    // Nomor ID dipotong (sliced) jika di bawah barcode / under-code
     const showIdUnder = displayValue && idPosition === 'under-code';
     const showIdSide = displayValue && idPosition === 'side-text';
-    const idLines = showIdUnder ? sliceTextChunks(qrText, idSliceChunk) : [];
-
-    // Hitung tinggi teks ID jika diletakkan di bawah QR
-    const idLineH = fontSizeId + 2;
-    const totalIdH = showIdUnder && idLines.length > 0 ? (idLines.length * idLineH + 2) : 0;
     const scaleFactor = Math.max(0.4, Math.min(1.6, parseFloat(barcodeScale) || 1.0));
+
+    // Monospace character width for accurate under-QR alignment
+    ctx.font = `bold ${fontSizeId}px monospace`;
+    const charW = ctx.measureText('0').width || (fontSizeId * 0.62);
 
     if (layoutPosition === 'stacked') {
       let curY = margin;
+      const totalLines = detailLines.length;
+      let effTitleSize = fontSizeTitle;
+      let effDetailSize = fontSizeDetails;
+      if (totalLines > 2) {
+        const factor = Math.max(0.65, Math.min(1.0, (height * 0.45) / (totalLines * (fontSizeDetails + 3))));
+        effTitleSize = Math.max(8, Math.round(fontSizeTitle * factor));
+        effDetailSize = Math.max(7, Math.round(fontSizeDetails * factor));
+      }
+
       if (detailLines.length > 0) {
         ctx.fillStyle = lineColor;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
-        ctx.font = `bold ${fontSizeTitle}px ${fontFamily}`;
+        ctx.font = `bold ${effTitleSize}px ${fontFamily}`;
         ctx.fillText(detailLines[0], width / 2, curY);
-        curY += fontSizeTitle + 3;
+        curY += effTitleSize + 3;
 
         if (detailLines.length > 1) {
-          ctx.font = `600 ${fontSizeDetails}px ${fontFamily}`;
+          ctx.font = `600 ${effDetailSize}px ${fontFamily}`;
           for (let i = 1; i < detailLines.length; i++) {
             ctx.fillText(detailLines[i], width / 2, curY);
-            curY += fontSizeDetails + 2;
+            curY += effDetailSize + 2;
           }
         }
-        curY += 3;
+        curY += 2;
       }
+
+      // Estimasi awal cellSize & QR width
+      const idHeightEst = showIdUnder ? (3 * (fontSizeId + 2)) : (showIdSide ? (fontSizeId + 4) : 0);
+      const remainHEst = Math.max(10, height - curY - idHeightEst - margin);
+      const rawCellEst = Math.max(1, Math.floor(remainHEst / count));
+      const cellEst = Math.max(1, Math.floor(rawCellEst * scaleFactor));
+      const qrPixelEst = cellEst * count;
+
+      // Adaptasi chunk lebar ID agar presisi sama dengan lebar QR
+      let activeChunk = idSliceChunk;
+      if (idSliceChunk === 'auto') {
+        activeChunk = Math.max(3, Math.floor((qrPixelEst + 2) / charW));
+      }
+      let idLines = showIdUnder ? sliceTextChunks(qrText, activeChunk) : [];
+      let idLineH = fontSizeId + 2;
+      let totalIdH = showIdUnder && idLines.length > 0 ? (idLines.length * idLineH + 2) : 0;
 
       const idHeight = showIdUnder ? totalIdH : (showIdSide ? (fontSizeId + 4) : 0);
       const remainH = Math.max(10, height - curY - idHeight - margin);
       const rawCellSize = Math.max(1, Math.floor(remainH / count));
       const cellSize = Math.max(1, Math.floor(rawCellSize * scaleFactor));
       const qrPixelSize = cellSize * count;
+
+      if (idSliceChunk === 'auto') {
+        const finalAuto = Math.max(3, Math.floor((qrPixelSize + 2) / charW));
+        if (finalAuto !== activeChunk) {
+          activeChunk = finalAuto;
+          idLines = sliceTextChunks(qrText, activeChunk);
+        }
+      }
+
       const qrX = Math.round((width - qrPixelSize) / 2);
       const qrY = curY + Math.round((remainH - qrPixelSize) / 2);
 
@@ -443,7 +490,7 @@
         ctx.fillText(qrText, width / 2, qrY + qrPixelSize + 3);
       }
     } else {
-      // side-left atau side-right (Proporsional & seimbang, tidak mepet ke kiri)
+      // side-left atau side-right (Proporsional, tidak mepet kiri, ID adaptif lebar QR)
       const isSideLeft = layoutPosition !== 'side-right';
 
       // Alokasikan zona kolom QR Code secara proporsional (~35% - 40% dari lebar label)
@@ -452,7 +499,22 @@
         ? Math.round(codeZoneW / 2) 
         : (width - Math.round(codeZoneW / 2));
 
-      // Hitung batas ukuran QR agar proporsional di dalam codeZone
+      // 1. Estimasi awal batas kotak QR
+      const maxBoxInitial = Math.max(10, Math.min(height - (margin * 2), codeZoneW - (margin * 2)));
+      const rawCellSizeEst = Math.max(1, Math.floor(maxBoxInitial / count));
+      const cellSizeEst = Math.max(1, Math.floor(rawCellSizeEst * scaleFactor));
+      const qrPixelEst = cellSizeEst * count;
+
+      // 2. Hitung jumlah karakter per baris yang pas dengan lebar QR
+      let activeChunk = idSliceChunk;
+      if (idSliceChunk === 'auto') {
+        activeChunk = Math.max(3, Math.floor((qrPixelEst + 2) / charW));
+      }
+      let idLines = showIdUnder ? sliceTextChunks(qrText, activeChunk) : [];
+      let idLineH = fontSizeId + 2;
+      let totalIdH = showIdUnder && idLines.length > 0 ? (idLines.length * idLineH + 2) : 0;
+
+      // 3. Hitung ulang ukuran QR presisi setelah totalIdH diketahui
       const availableH = height - (margin * 2) - totalIdH;
       const availableW = codeZoneW - (margin * 2);
       const maxBox = Math.max(10, Math.min(availableH, availableW));
@@ -460,6 +522,16 @@
       const rawCellSize = Math.max(1, Math.floor(maxBox / count));
       const cellSize = Math.max(1, Math.floor(rawCellSize * scaleFactor));
       const qrPixelSize = cellSize * count;
+
+      // 4. Sinkronisasi final karakter per baris dengan ukuran pixel QR yang sebenarnya
+      if (idSliceChunk === 'auto') {
+        const finalAuto = Math.max(3, Math.floor((qrPixelSize + 2) / charW));
+        if (finalAuto !== activeChunk) {
+          activeChunk = finalAuto;
+          idLines = sliceTextChunks(qrText, activeChunk);
+          totalIdH = idLines.length * idLineH + 2;
+        }
+      }
 
       // Hitung total tinggi kelompok (QR + Sliced ID) agar vertikal di tengah zona
       const totalGroupH = qrPixelSize + (totalIdH > 0 ? (totalIdH + 2) : 0);
@@ -477,7 +549,7 @@
         }
       }
 
-      // Render Nomor ID di bawah QR (Sliced Vertikal)
+      // Render Nomor ID di bawah QR (Sliced Vertikal menyesuaikan lebar QR)
       if (showIdUnder && idLines.length > 0) {
         ctx.fillStyle = lineColor;
         ctx.font = `bold ${fontSizeId}px monospace`;
@@ -490,7 +562,7 @@
         });
       }
 
-      // Zona Teks Detail Produk
+      // Zona Teks Detail Produk (Mendukung hingga 6 baris)
       const textX = isSideLeft ? (codeZoneW + 8) : margin;
       const maxTextW = isSideLeft 
         ? Math.max(20, width - textX - margin) 
@@ -500,14 +572,27 @@
       const lineHeights = [];
       let totalTextH = 0;
 
+      // Penyesuaian ukuran font dinamis agar muat rapi hingga 6 baris stiker
+      const availTextH = height - (margin * 2);
+      let effTitleSize = fontSizeTitle;
+      let effDetailSize = fontSizeDetails;
+      if (totalLines > 2) {
+        const estTotal = (fontSizeTitle + 3) + ((totalLines - 1) * (fontSizeDetails + 3));
+        if (estTotal > availTextH) {
+          const factor = Math.max(0.65, Math.min(1.0, availTextH / estTotal));
+          effTitleSize = Math.max(8, Math.round(fontSizeTitle * factor));
+          effDetailSize = Math.max(7, Math.round(fontSizeDetails * factor));
+        }
+      }
+
       detailLines.forEach((line, idx) => {
-        const sz = idx === 0 ? fontSizeTitle : fontSizeDetails;
-        const h = sz + 4;
+        const sz = idx === 0 ? effTitleSize : effDetailSize;
+        const h = sz + 3;
         lineHeights.push(h);
         totalTextH += h;
       });
       if (showIdSide) {
-        const h = fontSizeId + 6;
+        const h = fontSizeId + 4;
         lineHeights.push(h);
         totalTextH += h;
       }
@@ -520,7 +605,7 @@
 
       detailLines.forEach((line, idx) => {
         const isHeader = idx === 0;
-        ctx.font = isHeader ? `bold ${fontSizeTitle}px ${fontFamily}` : `600 ${fontSizeDetails}px ${fontFamily}`;
+        ctx.font = isHeader ? `bold ${effTitleSize}px ${fontFamily}` : `600 ${effDetailSize}px ${fontFamily}`;
         ctx.fillText(line, anchorX, textY, maxTextW);
         textY += lineHeights[idx];
       });
@@ -535,7 +620,7 @@
   }
 
   /**
-   * Render QR Code ke SVG String
+   * Render QR Code ke SVG String dengan nomor ID adaptif lebar QR & teks hingga 6 baris
    */
   function renderQRCodeToSVG(text, options = {}) {
     const qrcodeLib = (typeof window !== 'undefined' && window.qrcode) || 
@@ -593,10 +678,8 @@
 
     const showIdUnder = displayValue && idPosition === 'under-code';
     const showIdSide = displayValue && idPosition === 'side-text';
-    const idLines = showIdUnder ? sliceTextChunks(qrText, idSliceChunk) : [];
-    const idLineH = fontSizeId + 2;
-    const totalIdH = showIdUnder && idLines.length > 0 ? (idLines.length * idLineH + 2) : 0;
     const scaleFactor = Math.max(0.4, Math.min(1.6, parseFloat(barcodeScale) || 1.0));
+    const charW = fontSizeId * 0.62;
 
     let rects = '';
     let textSvg = '';
@@ -604,21 +687,53 @@
     if (qr) {
       if (layoutPosition === 'stacked') {
         let curY = margin;
-        if (detailLines.length > 0) {
-          textSvg += `<text x="${width / 2}" y="${curY + fontSizeTitle}" text-anchor="middle" font-family="${fontFamily}" font-weight="bold" font-size="${fontSizeTitle}" fill="${lineColor}">${escapeXml(detailLines[0])}</text>`;
-          curY += fontSizeTitle + 3;
-          for (let i = 1; i < detailLines.length; i++) {
-            textSvg += `<text x="${width / 2}" y="${curY + fontSizeDetails}" text-anchor="middle" font-family="${fontFamily}" font-weight="600" font-size="${fontSizeDetails}" fill="${lineColor}">${escapeXml(detailLines[i])}</text>`;
-            curY += fontSizeDetails + 2;
-          }
-          curY += 3;
+        const totalLines = detailLines.length;
+        let effTitleSize = fontSizeTitle;
+        let effDetailSize = fontSizeDetails;
+        if (totalLines > 2) {
+          const factor = Math.max(0.65, Math.min(1.0, (height * 0.45) / (totalLines * (fontSizeDetails + 3))));
+          effTitleSize = Math.max(8, Math.round(fontSizeTitle * factor));
+          effDetailSize = Math.max(7, Math.round(fontSizeDetails * factor));
         }
+
+        if (detailLines.length > 0) {
+          textSvg += `<text x="${width / 2}" y="${curY + effTitleSize}" text-anchor="middle" font-family="${fontFamily}" font-weight="bold" font-size="${effTitleSize}" fill="${lineColor}">${escapeXml(detailLines[0])}</text>`;
+          curY += effTitleSize + 3;
+          for (let i = 1; i < detailLines.length; i++) {
+            textSvg += `<text x="${width / 2}" y="${curY + effDetailSize}" text-anchor="middle" font-family="${fontFamily}" font-weight="600" font-size="${effDetailSize}" fill="${lineColor}">${escapeXml(detailLines[i])}</text>`;
+            curY += effDetailSize + 2;
+          }
+          curY += 2;
+        }
+
+        const idHeightEst = showIdUnder ? (3 * (fontSizeId + 2)) : (showIdSide ? (fontSizeId + 4) : 0);
+        const remainHEst = Math.max(10, height - curY - idHeightEst - margin);
+        const rawCellEst = Math.max(1, Math.floor(remainHEst / count));
+        const cellEst = Math.max(1, Math.floor(rawCellEst * scaleFactor));
+        const qrPixelEst = cellEst * count;
+
+        let activeChunk = idSliceChunk;
+        if (idSliceChunk === 'auto') {
+          activeChunk = Math.max(3, Math.floor((qrPixelEst + 2) / charW));
+        }
+        let idLines = showIdUnder ? sliceTextChunks(qrText, activeChunk) : [];
+        let idLineH = fontSizeId + 2;
+        let totalIdH = showIdUnder && idLines.length > 0 ? (idLines.length * idLineH + 2) : 0;
 
         const idHeight = showIdUnder ? totalIdH : (showIdSide ? (fontSizeId + 4) : 0);
         const remainH = Math.max(10, height - curY - idHeight - margin);
         const rawCellSize = Math.max(1, Math.floor(remainH / count));
         const cellSize = Math.max(1, Math.floor(rawCellSize * scaleFactor));
         const qrPixelSize = cellSize * count;
+
+        if (idSliceChunk === 'auto') {
+          const finalAuto = Math.max(3, Math.floor((qrPixelSize + 2) / charW));
+          if (finalAuto !== activeChunk) {
+            activeChunk = finalAuto;
+            idLines = sliceTextChunks(qrText, activeChunk);
+          }
+        }
+
         const qrX = Math.round((width - qrPixelSize) / 2);
         const qrY = curY + Math.round((remainH - qrPixelSize) / 2);
 
@@ -643,6 +758,19 @@
         const codeZoneW = Math.max(Math.round(height * 0.9), Math.round(width * 0.38));
         const codeZoneCenter = isSideLeft ? Math.round(codeZoneW / 2) : (width - Math.round(codeZoneW / 2));
 
+        const maxBoxInitial = Math.max(10, Math.min(height - (margin * 2), codeZoneW - (margin * 2)));
+        const rawCellSizeEst = Math.max(1, Math.floor(maxBoxInitial / count));
+        const cellSizeEst = Math.max(1, Math.floor(rawCellSizeEst * scaleFactor));
+        const qrPixelEst = cellSizeEst * count;
+
+        let activeChunk = idSliceChunk;
+        if (idSliceChunk === 'auto') {
+          activeChunk = Math.max(3, Math.floor((qrPixelEst + 2) / charW));
+        }
+        let idLines = showIdUnder ? sliceTextChunks(qrText, activeChunk) : [];
+        let idLineH = fontSizeId + 2;
+        let totalIdH = showIdUnder && idLines.length > 0 ? (idLines.length * idLineH + 2) : 0;
+
         const availableH = height - (margin * 2) - totalIdH;
         const availableW = codeZoneW - (margin * 2);
         const maxBox = Math.max(10, Math.min(availableH, availableW));
@@ -650,6 +778,15 @@
         const rawCellSize = Math.max(1, Math.floor(maxBox / count));
         const cellSize = Math.max(1, Math.floor(rawCellSize * scaleFactor));
         const qrPixelSize = cellSize * count;
+
+        if (idSliceChunk === 'auto') {
+          const finalAuto = Math.max(3, Math.floor((qrPixelSize + 2) / charW));
+          if (finalAuto !== activeChunk) {
+            activeChunk = finalAuto;
+            idLines = sliceTextChunks(qrText, activeChunk);
+            totalIdH = idLines.length * idLineH + 2;
+          }
+        }
 
         const totalGroupH = qrPixelSize + (totalIdH > 0 ? (totalIdH + 2) : 0);
         const qrY = Math.max(margin, Math.round((height - totalGroupH) / 2));
@@ -676,16 +813,30 @@
         const anchorX = isSideLeft ? textX : (textX + maxTextW);
         const anchorType = isSideLeft ? 'start' : 'end';
 
+        const totalLines = detailLines.length + (showIdSide ? 1 : 0);
         const lineHeights = [];
         let totalTextH = 0;
+
+        const availTextH = height - (margin * 2);
+        let effTitleSize = fontSizeTitle;
+        let effDetailSize = fontSizeDetails;
+        if (totalLines > 2) {
+          const estTotal = (fontSizeTitle + 3) + ((totalLines - 1) * (fontSizeDetails + 3));
+          if (estTotal > availTextH) {
+            const factor = Math.max(0.65, Math.min(1.0, availTextH / estTotal));
+            effTitleSize = Math.max(8, Math.round(fontSizeTitle * factor));
+            effDetailSize = Math.max(7, Math.round(fontSizeDetails * factor));
+          }
+        }
+
         detailLines.forEach((line, idx) => {
-          const sz = idx === 0 ? fontSizeTitle : fontSizeDetails;
-          const h = sz + 4;
+          const sz = idx === 0 ? effTitleSize : effDetailSize;
+          const h = sz + 3;
           lineHeights.push(h);
           totalTextH += h;
         });
         if (showIdSide) {
-          const h = fontSizeId + 6;
+          const h = fontSizeId + 4;
           lineHeights.push(h);
           totalTextH += h;
         }
@@ -693,7 +844,7 @@
         let textY = Math.max(margin, Math.round((height - totalTextH) / 2));
         detailLines.forEach((line, idx) => {
           const isHeader = idx === 0;
-          const sz = isHeader ? fontSizeTitle : fontSizeDetails;
+          const sz = isHeader ? effTitleSize : effDetailSize;
           const fw = isHeader ? 'bold' : '600';
           textSvg += `<text x="${anchorX}" y="${textY + sz}" text-anchor="${anchorType}" font-family="${fontFamily}" font-weight="${fw}" font-size="${sz}" fill="${lineColor}">${escapeXml(line)}</text>`;
           textY += lineHeights[idx];
@@ -903,7 +1054,7 @@
       return label.split('\n').map(s => s.trim()).filter(Boolean);
     }
 
-    // Cek format emas: misal "Harta - 10 gr - Vault 1 - Lemari 2 - Laci 3 - Kotak 4"
+    // Cek format emas: misal "Hartadinata - 10 gr - Vault 1 - Lemari 2 - Laci 3 - Kotak 4"
     const parts = label.split(' - ');
     if (parts.length >= 4) {
       return [

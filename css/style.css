@@ -446,6 +446,38 @@ body {
     page-break-inside: auto;
   }
 
+  /* Dukungan multi-halaman Print All untuk Tom & Jerry No. 107 */
+  body.print-mode-tj-107 .print-page-sheet {
+    width: 165mm !important;
+    height: 210mm !important;
+    max-height: 210mm !important;
+    display: grid !important;
+    grid-template-columns: repeat(3, 50mm) !important;
+    grid-auto-rows: 18mm !important;
+    column-gap: 5mm !important;
+    row-gap: 2mm !important;
+    box-sizing: border-box !important;
+    padding-top: 7mm !important;
+    padding-left: 3mm !important;
+    margin: 0 !important;
+    justify-content: start !important;
+    align-content: start !important;
+    page-break-after: always !important;
+    break-after: page !important;
+    overflow: hidden !important;
+  }
+
+  body.print-mode-tj-107 .print-page-sheet:last-child {
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+  }
+
+  /* Page break setiap 30 label jika dicetak tanpa wrapper */
+  body.print-mode-tj-107 .barcode-item-card:nth-child(30n) {
+    page-break-after: always !important;
+    break-after: page !important;
+  }
+
   body.print-mode-tj-107 .barcode-item-card {
     width: 50mm !important;
     height: 18mm !important;
@@ -477,6 +509,8 @@ body {
     display: block !important;
     margin: 0 auto !important;
     object-fit: contain !important;
+    image-rendering: -webkit-optimize-contrast !important;
+    image-rendering: crisp-edges !important;
   }
 
   /* Layout Sheet Stiker A4 Standar */

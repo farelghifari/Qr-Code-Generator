@@ -243,7 +243,7 @@
             <div class="flex items-center justify-between gap-2 px-1 text-[11px] text-slate-500">
               <span class="font-medium text-slate-600">📥 Contoh Template Excel:</span>
               <div class="flex gap-2">
-                <a href="/Hartadinata_Abadi_Shop_Sample.xlsx" download class="text-indigo-600 hover:text-indigo-800 font-semibold underline" title="Download template 30 baris Hartadinata Abadi Shop">Harta (.xlsx)</a>
+                <a href="/Hartadinata_Abadi_Shop_Sample.xlsx" download class="text-indigo-600 hover:text-indigo-800 font-semibold underline" title="Download template 30 baris Hartadinata Abadi Shop">Hartadinata (.xlsx)</a>
                 <span>•</span>
                 <a href="/Butik_Emas_Antam_Sample.xlsx" download class="text-indigo-600 hover:text-indigo-800 font-semibold underline" title="Download template 30 baris Butik Emas Antam">Antam (.xlsx)</a>
               </div>
@@ -262,129 +262,104 @@
                 </div>
               </div>
 
-              <!-- Pilihan Format: Logam Mulia (Harta/Antam) vs Standar -->
-              <div class="flex items-center justify-between bg-slate-100 p-1 rounded-lg text-xs font-semibold">
-                <button type="button" id="btn-fmt-gold" class="flex-1 py-1 px-2 rounded-md bg-white text-indigo-700 shadow-2xs text-center transition flex items-center justify-center gap-1">
-                  <span>🏆 Logam Mulia</span>
-                  <span class="text-[10px] text-slate-400 font-normal">(Harta/Antam)</span>
-                </button>
-                <button type="button" id="btn-fmt-standard" class="flex-1 py-1 px-2 rounded-md text-slate-600 hover:text-slate-900 text-center transition">
-                  <span>📋 Kolom Standar</span>
-                </button>
-              </div>
-
-              <!-- PANEL 1: FORMAT LOGAM MULIA (HARTA / ANTAM) -->
-              <div id="panel-gold-mapping" class="space-y-2.5">
-                <!-- Pilihan Brand / Toko Emas -->
-                <div class="bg-amber-50/70 border border-amber-200 rounded-lg p-2.5 space-y-1.5">
-                  <div class="flex items-center justify-between">
-                    <label class="text-[11px] font-bold text-amber-950 flex items-center gap-1">
-                      <span>🏷️ Brand / Toko:</span>
-                    </label>
-                    <span id="gold-brand-autotag" class="text-[9px] bg-amber-200/80 text-amber-900 font-bold px-1.5 py-0.5 rounded">Auto-Detect</span>
-                  </div>
-                  <div class="grid grid-cols-3 gap-1.5 text-xs">
-                    <label class="flex items-center gap-1.5 bg-white border border-amber-200 px-2 py-1 rounded cursor-pointer hover:border-amber-400">
-                      <input type="radio" name="gold-brand" value="Harta" id="gold-brand-harta" checked class="text-amber-600 focus:ring-amber-500">
-                      <span class="font-bold text-slate-800 text-[11px]">Harta</span>
-                    </label>
-                    <label class="flex items-center gap-1.5 bg-white border border-amber-200 px-2 py-1 rounded cursor-pointer hover:border-amber-400">
-                      <input type="radio" name="gold-brand" value="Antam" id="gold-brand-antam" class="text-amber-600 focus:ring-amber-500">
-                      <span class="font-bold text-slate-800 text-[11px]">Antam</span>
-                    </label>
-                    <label class="flex items-center gap-1.5 bg-white border border-amber-200 px-2 py-1 rounded cursor-pointer hover:border-amber-400">
-                      <input type="radio" name="gold-brand" value="custom" id="gold-brand-custom-radio" class="text-amber-600 focus:ring-amber-500">
-                      <input type="text" id="gold-brand-custom-input" placeholder="Lainnya" class="w-full text-[11px] font-semibold text-slate-800 outline-none bg-transparent">
-                    </label>
-                  </div>
+              <!-- Pilihan Brand / Toko Logam Mulia -->
+              <div class="bg-amber-50/70 border border-amber-200 rounded-lg p-2.5 space-y-1.5">
+                <div class="flex items-center justify-between">
+                  <label class="text-[11px] font-bold text-amber-950 flex items-center gap-1">
+                    <span>🏷️ Brand / Awalan Baris 1:</span>
+                  </label>
+                  <span id="gold-brand-autotag" class="text-[9px] bg-amber-200/80 text-amber-900 font-bold px-1.5 py-0.5 rounded">Auto-Detect</span>
                 </div>
-
-                <!-- Pemetaan 6 Kolom Emas -->
-                <div class="grid grid-cols-2 gap-2 text-[11px]">
-                  <div>
-                    <label class="block text-slate-600 font-semibold mb-0.5">1. Kolom ID / Barcode:</label>
-                    <select id="gold-col-id" class="w-full px-2 py-1 border border-slate-300 rounded bg-slate-50 font-medium text-slate-800 outline-none text-xs">
-                    </select>
-                  </div>
-                  <div>
-                    <label class="block text-slate-600 font-semibold mb-0.5">2. Kolom Gramasi:</label>
-                    <select id="gold-col-gramasi" class="w-full px-2 py-1 border border-slate-300 rounded bg-slate-50 font-medium text-slate-800 outline-none text-xs">
-                    </select>
-                  </div>
-                  <div>
-                    <label class="block text-slate-600 font-semibold mb-0.5">3. Kolom Vault:</label>
-                    <select id="gold-col-vault" class="w-full px-2 py-1 border border-slate-300 rounded bg-slate-50 font-medium text-slate-800 outline-none text-xs">
-                    </select>
-                  </div>
-                  <div>
-                    <label class="block text-slate-600 font-semibold mb-0.5">4. Kolom Lemari:</label>
-                    <select id="gold-col-lemari" class="w-full px-2 py-1 border border-slate-300 rounded bg-slate-50 font-medium text-slate-800 outline-none text-xs">
-                    </select>
-                  </div>
-                  <div>
-                    <label class="block text-slate-600 font-semibold mb-0.5">5. Kolom Laci:</label>
-                    <select id="gold-col-laci" class="w-full px-2 py-1 border border-slate-300 rounded bg-slate-50 font-medium text-slate-800 outline-none text-xs">
-                    </select>
-                  </div>
-                  <div>
-                    <label class="block text-slate-600 font-semibold mb-0.5">6. Kolom Kotak:</label>
-                    <select id="gold-col-kotak" class="w-full px-2 py-1 border border-slate-300 rounded bg-slate-50 font-medium text-slate-800 outline-none text-xs">
-                    </select>
-                  </div>
-                </div>
-
-                <!-- Opsi Format Tampilan Stiker: 2 Baris vs 1 Baris -->
-                <div class="bg-slate-50 border border-slate-200 rounded-lg p-2 text-[11px] space-y-1">
-                  <span class="block font-semibold text-slate-700">Tampilan Teks di Stiker (18 × 50 mm):</span>
-                  <div class="flex gap-4">
-                    <label class="flex items-center gap-1.5 cursor-pointer text-slate-700 font-medium">
-                      <input type="radio" name="gold-layout" value="2lines" id="gold-layout-2lines" checked class="text-indigo-600 focus:ring-indigo-500">
-                      <span>2 Baris (Rapi & Jelas)</span>
-                    </label>
-                    <label class="flex items-center gap-1.5 cursor-pointer text-slate-700 font-medium">
-                      <input type="radio" name="gold-layout" value="1line" id="gold-layout-1line" class="text-indigo-600 focus:ring-indigo-500">
-                      <span>1 Baris Penuh</span>
-                    </label>
-                  </div>
+                <div class="grid grid-cols-4 gap-1 text-[11px]">
+                  <label class="flex items-center gap-1 bg-white border border-amber-200 px-1.5 py-1 rounded cursor-pointer hover:border-amber-400">
+                    <input type="radio" name="gold-brand" value="Hartadinata" id="gold-brand-harta" checked class="text-amber-600 focus:ring-amber-500">
+                    <span class="font-bold text-slate-800 text-[10px] truncate">Hartadinata</span>
+                  </label>
+                  <label class="flex items-center gap-1 bg-white border border-amber-200 px-1.5 py-1 rounded cursor-pointer hover:border-amber-400">
+                    <input type="radio" name="gold-brand" value="Antam" id="gold-brand-antam" class="text-amber-600 focus:ring-amber-500">
+                    <span class="font-bold text-slate-800 text-[10px] truncate">Antam</span>
+                  </label>
+                  <label class="flex items-center gap-1 bg-white border border-amber-200 px-1.5 py-1 rounded cursor-pointer hover:border-amber-400">
+                    <input type="radio" name="gold-brand" value="none" id="gold-brand-none" class="text-amber-600 focus:ring-amber-500">
+                    <span class="font-bold text-slate-600 text-[10px] truncate">Tanpa Brand</span>
+                  </label>
+                  <label class="flex items-center gap-1 bg-white border border-amber-200 px-1.5 py-1 rounded cursor-pointer hover:border-amber-400">
+                    <input type="radio" name="gold-brand" value="custom" id="gold-brand-custom-radio" class="text-amber-600 focus:ring-amber-500">
+                    <input type="text" id="gold-brand-custom-input" placeholder="Lainnya" class="w-full text-[10px] font-semibold text-slate-800 outline-none bg-transparent">
+                  </label>
                 </div>
               </div>
 
-              <!-- PANEL 2: FORMAT STANDAR (1 KOLOM SAJA) -->
-              <div id="panel-standard-mapping" class="space-y-2.5 hidden">
-                <div class="grid grid-cols-2 gap-2 text-[11px]">
-                  <div>
-                    <label class="block text-slate-600 font-semibold mb-1">Kolom ID / Barcode:</label>
-                    <select id="excel-col-id" class="w-full px-2 py-1.5 border border-slate-300 rounded-lg bg-slate-50 font-medium text-slate-800 outline-none text-xs">
-                    </select>
-                  </div>
-                  <div>
-                    <label class="block text-slate-600 font-semibold mb-1">Kolom Label Produk:</label>
-                    <select id="excel-col-label" class="w-full px-2 py-1.5 border border-slate-300 rounded-lg bg-slate-50 font-medium text-slate-800 outline-none text-xs">
-                      <option value="-1">-- Tanpa Label --</option>
-                    </select>
+              <!-- 1. Pilihan Kolom Barcode ID -->
+              <div class="bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-xs space-y-1">
+                <div class="flex items-center justify-between">
+                  <label for="excel-col-id-selector" class="font-bold text-slate-800 text-[11px] flex items-center gap-1">
+                    <span>🔑 Kolom Nomor Barcode / ID:</span>
+                  </label>
+                  <span class="text-[10px] text-indigo-600 font-semibold">(Wajib)</span>
+                </div>
+                <select id="excel-col-id-selector" class="w-full px-2 py-1.5 border border-slate-300 rounded bg-white font-medium text-slate-800 outline-none text-xs">
+                </select>
+              </div>
+
+              <!-- 2. Pengaturan Baris Dinamis untuk Semua Kolom (Maksimal 6 Baris Kebawah) -->
+              <div class="space-y-2 border border-slate-200 rounded-xl p-2.5 bg-slate-50/50">
+                <div class="flex items-center justify-between">
+                  <span class="font-bold text-slate-800 text-[11px] flex items-center gap-1">
+                    <span>📊 Pemetaan Kolom ke Baris Label (Maks. 6 Baris):</span>
+                  </span>
+                  <div class="flex gap-1 text-[10px]">
+                    <button type="button" id="btn-excel-preset-gold" class="px-1.5 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded font-semibold transition" title="Format Emas: Baris 1 Brand/Gramasi, Baris 2 Vault/Lemari/Laci/Kotak">🏆 Format Emas</button>
+                    <button type="button" id="btn-excel-preset-linear" class="px-1.5 py-0.5 bg-indigo-100 hover:bg-indigo-200 text-indigo-800 rounded font-semibold transition" title="1 Kolom per Baris (Baris 1 s/d 6)">📋 1 Baris/Kolom</button>
                   </div>
                 </div>
+                <p class="text-[10px] text-slate-500 leading-tight">
+                  Centang untuk menampilkan kolom. Tentukan nomor baris (Baris 1 s/d Baris 6). Kolom pada baris yang sama otomatis digabung dengan tanda hubung (<code class="bg-slate-200 px-1 rounded">-</code>).
+                </p>
+
+                <!-- Container Dinamis Tabel Kolom Excel -->
+                <div id="excel-columns-mapping-container" class="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+                  <!-- Diisi secara dinamis dari JS berdasarkan kolom di Excel -->
+                </div>
+              </div>
+
+              <!-- Hidden elements for backward compatibility -->
+              <div class="hidden">
+                <button type="button" id="btn-fmt-gold"></button>
+                <button type="button" id="btn-fmt-standard"></button>
+                <div id="panel-gold-mapping"></div>
+                <div id="panel-standard-mapping"></div>
+                <select id="gold-col-id"></select>
+                <select id="gold-col-gramasi"></select>
+                <select id="gold-col-vault"></select>
+                <select id="gold-col-lemari"></select>
+                <select id="gold-col-laci"></select>
+                <select id="gold-col-kotak"></select>
+                <select id="excel-col-id"></select>
+                <select id="excel-col-label"></select>
+                <input type="radio" name="gold-layout" value="2lines" id="gold-layout-2lines" checked>
+                <input type="radio" name="gold-layout" value="1line" id="gold-layout-1line">
               </div>
 
               <!-- Baris Header Toggle & Info Sheet -->
-              <div class="flex items-center justify-between text-[11px] text-slate-600 bg-slate-50 p-2 rounded-lg border border-slate-200">
+              <div class="flex items-center justify-between text-[11px] text-slate-600 bg-white p-2 rounded-lg border border-slate-200">
                 <label class="flex items-center gap-1.5 cursor-pointer font-medium text-[11px]">
                   <input type="checkbox" id="excel-has-header" checked class="rounded text-emerald-600 focus:ring-emerald-500">
-                  <span>Baris 1 adalah Header</span>
+                  <span>Baris 1 adalah Header Kolom</span>
                 </label>
                 <span id="excel-sheet-name-badge" class="text-[10px] text-slate-400 font-mono">Sheet1</span>
               </div>
 
-              <!-- Real-time Preview Sampel Stiker -->
-              <div class="p-2.5 bg-gradient-to-r from-emerald-50/70 to-teal-50/70 border border-emerald-200 rounded-lg space-y-1">
-                <div class="flex items-center justify-between text-[10px] font-bold text-emerald-900 border-b border-emerald-100 pb-1">
-                  <span>🏷️ Format Teks Baris 1:</span>
-                  <span class="text-amber-800 bg-amber-100 border border-amber-300 px-1 rounded text-[9px]">Muat 1 Label (18×50mm)</span>
+              <!-- Real-time Preview Sampel Stiker (Maksimal 6 Baris) -->
+              <div class="p-2.5 bg-gradient-to-r from-emerald-50/80 to-teal-50/80 border border-emerald-300 rounded-lg space-y-1.5">
+                <div class="flex items-center justify-between text-[10px] font-bold text-emerald-900 border-b border-emerald-200/80 pb-1">
+                  <span>🏷️ Hasil Tampilan Teks Stiker (Baris 1 s/d 6):</span>
+                  <span class="text-emerald-900 bg-emerald-100 border border-emerald-300 px-1.5 py-0.2 rounded text-[9px]">Muat Presisi 18×50mm</span>
                 </div>
-                <div id="excel-sample-gold-preview" class="text-xs text-slate-800 font-medium">
-                  <!-- Diisi dinamis -->
+                <div id="excel-sample-gold-preview" class="space-y-1 text-xs text-slate-800 font-medium">
+                  <!-- Diisi dinamis baris 1 s/d 6 -->
                 </div>
-                <div class="text-[10px] text-slate-500 font-mono" id="excel-sample-id-preview">
+                <div class="text-[10px] text-slate-500 font-mono border-t border-emerald-100 pt-1" id="excel-sample-id-preview">
                   <!-- Barcode ID -->
                 </div>
               </div>
@@ -1132,6 +1107,32 @@
               <span class="text-slate-500 text-[11px]">1 barcode per lembar label otomatis dengan page break</span>
             </div>
           </label>
+        </div>
+
+        <!-- Pilihan Cakupan Cetak: Cetak Semua (Print All) vs Lembar Tertentu -->
+        <div class="p-2.5 bg-indigo-50/70 border border-indigo-200 rounded-xl space-y-1.5 text-xs">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-indigo-950 flex items-center gap-1">
+              <span>🖨️ Cakupan Cetak (Print Scope):</span>
+            </span>
+            <span id="print-total-labels-badge" class="bg-indigo-200/80 text-indigo-900 font-bold px-1.5 py-0.5 rounded text-[10px]">0 Label</span>
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <label class="flex items-start gap-2 p-2 bg-white border-2 border-indigo-500 rounded-lg cursor-pointer hover:bg-indigo-50/30 transition shadow-2xs">
+              <input type="radio" name="print-scope" value="all" id="print-scope-all" checked class="mt-0.5 text-indigo-600 focus:ring-indigo-500">
+              <div>
+                <span class="font-bold text-slate-800 block text-[11px]">Cetak Semua (Print All)</span>
+                <span class="text-[10px] text-slate-500 block leading-tight">Cetak seluruh label otomatis bersambung antar lembar</span>
+              </div>
+            </label>
+            <label class="flex items-start gap-2 p-2 bg-white border border-slate-200 rounded-lg cursor-pointer hover:border-indigo-400 transition shadow-2xs">
+              <input type="radio" name="print-scope" value="sheet" id="print-scope-sheet" class="mt-0.5 text-indigo-600 focus:ring-indigo-500">
+              <div>
+                <span class="font-bold text-slate-800 block text-[11px]">Lembar Tertentu Saja</span>
+                <span class="text-[10px] text-slate-500 block leading-tight">Pilih 1 nomor lembar untuk dicetak</span>
+              </div>
+            </label>
+          </div>
         </div>
 
         <!-- Pilihan Lembar Halaman (1 lembar = 30 label) -->

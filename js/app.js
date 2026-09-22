@@ -245,7 +245,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnGenerateFromExcel = document.getElementById('btn-generate-from-excel');
   const btnExcelCountTag = document.getElementById('btn-excel-count-tag');
 
-  // Mode Format Emas (Hartadinata / Antam) Elements
+  // Mode Format Emas (Hartadinata / Antam) & Dynamic Excel Elements
   const btnFmtGold = document.getElementById('btn-fmt-gold');
   const btnFmtStandard = document.getElementById('btn-fmt-standard');
   const panelGoldMapping = document.getElementById('panel-gold-mapping');
@@ -253,8 +253,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const goldBrandAutotag = document.getElementById('gold-brand-autotag');
   const goldBrandHarta = document.getElementById('gold-brand-harta');
   const goldBrandAntam = document.getElementById('gold-brand-antam');
+  const goldBrandNone = document.getElementById('gold-brand-none');
   const goldBrandCustomRadio = document.getElementById('gold-brand-custom-radio');
   const goldBrandCustomInput = document.getElementById('gold-brand-custom-input');
+  const excelColIdSelector = document.getElementById('excel-col-id-selector');
+  const excelColumnsMappingContainer = document.getElementById('excel-columns-mapping-container');
+  const btnExcelPresetGold = document.getElementById('btn-excel-preset-gold');
+  const btnExcelPresetLinear = document.getElementById('btn-excel-preset-linear');
+
   const goldColId = document.getElementById('gold-col-id');
   const goldColGramasi = document.getElementById('gold-col-gramasi');
   const goldColVault = document.getElementById('gold-col-vault');
@@ -274,6 +280,8 @@ document.addEventListener('DOMContentLoaded', () => {
   let excelCurrentSheetName = '';
   let excelFormatMode = 'gold'; // 'gold' (default) or 'standard'
   let customExcelItemsToGenerate = null;
+  let excelColumnConfigs = []; // Array: [ { colIdx, name, sampleVal, enabled, targetRow } ]
+  let excelBarcodeColIdx = 0;
 
   const singleIdInput = document.getElementById('single-id-input');
   const btnSingleRandomize = document.getElementById('btn-single-randomize');
@@ -343,6 +351,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const printSheetSelect = document.getElementById('print-sheet-select');
   const btnDownloadSheetPng = document.getElementById('btn-download-sheet-png');
   const printShowBordersChk = document.getElementById('print-show-borders-chk');
+  const printScopeAll = document.getElementById('print-scope-all');
+  const printScopeSheet = document.getElementById('print-scope-sheet');
+  const printTotalLabelsBadge = document.getElementById('print-total-labels-badge');
+  const printSheetSelectorGroup = document.getElementById('print-sheet-selector-group');
 
   const historyModal = document.getElementById('history-modal');
   const btnOpenHistory = document.getElementById('btn-open-history');
@@ -738,37 +750,65 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function detectGoldBrandFromFilename(fn) {
     const lower = (fn || '').toLowerCase();
-    if (lower.includes('harta') || lower.includes('hartadinata')) return 'Harta';
+    if (lower.includes('harta') || lower.includes('hartadinata')) return 'Hartadinata';
     if (lower.includes('antam') || lower.includes('butik')) return 'Antam';
     return null;
   }
 
   function getGoldBrand() {
+    if (goldBrandNone && goldBrandNone.checked) return '';
     if (goldBrandAntam && goldBrandAntam.checked) return 'Antam';
     if (goldBrandCustomRadio && goldBrandCustomRadio.checked) {
-      return (goldBrandCustomInput && goldBrandCustomInput.value.trim()) || 'Harta';
+      return (goldBrandCustomInput && goldBrandCustomInput.value.trim()) || 'Hartadinata';
     }
-    return 'Harta';
+    return 'Hartadinata';
   }
 
   function setExcelFormatMode(mode) {
     excelFormatMode = mode;
-    if (mode === 'gold') {
-      if (btnFmtGold) btnFmtGold.className = 'flex-1 py-1.5 px-2 rounded-md bg-white text-indigo-700 shadow-2xs text-center transition flex items-center justify-center gap-1 font-bold';
-      if (btnFmtStandard) btnFmtStandard.className = 'flex-1 py-1.5 px-2 rounded-md text-slate-600 hover:text-slate-900 text-center transition font-semibold';
-      if (panelGoldMapping) panelGoldMapping.classList.remove('hidden');
-      if (panelStandardMapping) panelStandardMapping.classList.add('hidden');
-    } else {
-      if (btnFmtStandard) btnFmtStandard.className = 'flex-1 py-1.5 px-2 rounded-md bg-white text-indigo-700 shadow-2xs text-center transition flex items-center justify-center gap-1 font-bold';
-      if (btnFmtGold) btnFmtGold.className = 'flex-1 py-1.5 px-2 rounded-md text-slate-600 hover:text-slate-900 text-center transition font-semibold';
-      if (panelStandardMapping) panelStandardMapping.classList.remove('hidden');
-      if (panelGoldMapping) panelGoldMapping.classList.add('hidden');
-    }
     updateExcelSample();
+  }
+
+  // Menghasilkan susunan teks baris stiker (maksimal 6 baris) berdasarkan konfigurasi dinamis
+  function formatRowFromConfigs(row) {
+    if (!row) return { labelLines: [], fullLabel: '' };
+    const brand = getGoldBrand();
+    const rowBuckets = [[], [], [], [], [], []]; // Baris 1 s/d 6
+
+    if (brand) {
+      rowBuckets[0].push(brand);
+    }
+
+    if (Array.isArray(excelColumnConfigs) && excelColumnConfigs.length > 0) {
+      excelColumnConfigs.forEach(cfg => {
+        if (cfg.colIdx === excelBarcodeColIdx) return;
+        if (cfg.enabled && cfg.targetRow >= 1 && cfg.targetRow <= 6) {
+          const val = row[cfg.colIdx] !== undefined ? String(row[cfg.colIdx]).trim() : '';
+          if (val) {
+            rowBuckets[cfg.targetRow - 1].push(val);
+          }
+        }
+      });
+    }
+
+    const labelLines = rowBuckets
+      .map(parts => parts.join(' - '))
+      .filter(Boolean)
+      .slice(0, 6);
+
+    return {
+      labelLines: labelLines,
+      fullLabel: labelLines.join('\n')
+    };
   }
 
   function formatGoldRowLabel(row, is2Lines = true) {
     if (!row) return '';
+    if (excelColumnConfigs && excelColumnConfigs.length > 0) {
+      const { labelLines, fullLabel } = formatRowFromConfigs(row);
+      if (is2Lines) return fullLabel;
+      return labelLines.join(' - ');
+    }
     const brand = getGoldBrand();
     const gIdx = parseInt(goldColGramasi ? goldColGramasi.value : '-1', 10);
     const vIdx = parseInt(goldColVault ? goldColVault.value : '-1', 10);
@@ -805,22 +845,16 @@ document.addEventListener('DOMContentLoaded', () => {
     excelCurrentFileName = fileName;
     excelCurrentSheetName = sheetName || 'Sheet1';
 
-    // Auto deteksi brand Harta atau Antam dari nama file
+    // Auto deteksi brand Hartadinata atau Antam dari nama file
     const detected = detectGoldBrandFromFilename(fileName);
-    if (detected === 'Harta') {
+    if (detected === 'Hartadinata') {
       if (goldBrandHarta) goldBrandHarta.checked = true;
-      if (goldBrandAutotag) goldBrandAutotag.textContent = 'Auto: Harta';
-      setExcelFormatMode('gold');
+      if (goldBrandAutotag) goldBrandAutotag.textContent = 'Auto: Hartadinata';
     } else if (detected === 'Antam') {
       if (goldBrandAntam) goldBrandAntam.checked = true;
       if (goldBrandAutotag) goldBrandAutotag.textContent = 'Auto: Antam';
-      setExcelFormatMode('gold');
     } else {
-      const firstRowStr = (nonEmptyRows[0] || []).join(' ').toLowerCase();
-      if (firstRowStr.includes('gram') || firstRowStr.includes('vault') || firstRowStr.includes('lemari')) {
-        setExcelFormatMode('gold');
-        if (goldBrandAutotag) goldBrandAutotag.textContent = 'Logam Mulia';
-      }
+      if (goldBrandAutotag) goldBrandAutotag.textContent = 'Auto: Logam Mulia';
     }
 
     applyExcelHeaderAndColumns();
@@ -853,115 +887,209 @@ document.addEventListener('DOMContentLoaded', () => {
     if (excelSheetNameBadge) excelSheetNameBadge.textContent = excelCurrentSheetName;
     if (excelPreviewBox) excelPreviewBox.classList.remove('hidden');
 
-    // 1. Populasi Dropdown Mode Standar
-    if (excelColId && excelColLabel) {
-      excelColId.innerHTML = '';
-      excelColLabel.innerHTML = '<option value="-1">-- Tanpa Label --</option>';
+    const sampleRow = dataRows[0] || [];
 
-      let bestIdCol = 0;
-      let bestLabelCol = -1;
-
-      headers.forEach((h, idx) => {
-        const optId = document.createElement('option');
-        optId.value = idx;
-        optId.textContent = `${idx + 1}. ${h}`;
-        excelColId.appendChild(optId);
-
-        const optLabel = document.createElement('option');
-        optLabel.value = idx;
-        optLabel.textContent = `${idx + 1}. ${h}`;
-        excelColLabel.appendChild(optLabel);
-
-        const lower = h.toLowerCase();
-        if (bestIdCol === 0 && (lower.includes('id') || lower.includes('kode') || lower.includes('sku') || lower.includes('code') || lower.includes('no') || lower.includes('barcode') || lower.includes('pesanan'))) {
-          bestIdCol = idx;
+    // Cari kolom Barcode ID terbaik
+    let bestIdIdx = 0;
+    headers.forEach((h, idx) => {
+      const lower = h.toLowerCase();
+      if (lower.includes('id') || lower.includes('barcode') || lower.includes('kode') || lower.includes('pesanan') || lower.includes('order') || lower.includes('sku')) {
+        if (bestIdIdx === 0 || lower.includes('barcode')) {
+          bestIdIdx = idx;
         }
-        if (bestLabelCol === -1 && (lower.includes('nama') || lower.includes('name') || lower.includes('label') || lower.includes('produk') || lower.includes('barang') || lower.includes('item') || lower.includes('desc') || lower.includes('deskripsi'))) {
-          bestLabelCol = idx;
-        }
-      });
+      }
+    });
+    excelBarcodeColIdx = bestIdIdx;
 
-      excelColId.value = bestIdCol;
-      excelColLabel.value = bestLabelCol;
-    }
-
-    // 2. Populasi 6 Dropdown Mode Emas (Harta / Antam)
-    const goldSelects = [
-      { el: goldColId, keywords: ['id', 'kode', 'barcode', 'order', 'pesanan', 'no'], defaultIdx: 0 },
-      { el: goldColGramasi, keywords: ['gramasi', 'gram', 'berat', 'weight', 'gr'], defaultIdx: -1 },
-      { el: goldColVault, keywords: ['vault', 'brankas', 'vlt'], defaultIdx: -1 },
-      { el: goldColLemari, keywords: ['lemari', 'rak', 'cabinet', 'lmr'], defaultIdx: -1 },
-      { el: goldColLaci, keywords: ['laci', 'drawer', 'lc'], defaultIdx: -1 },
-      { el: goldColKotak, keywords: ['kotak', 'box', 'ktk'], defaultIdx: -1 }
-    ];
-
-    goldSelects.forEach(item => {
-      if (!item.el) return;
-      item.el.innerHTML = item.defaultIdx === -1 ? '<option value="-1">-- Kosong --</option>' : '';
-
-      let bestMatch = item.defaultIdx;
+    // Populasi Dropdown Kolom Barcode ID
+    if (excelColIdSelector) {
+      excelColIdSelector.innerHTML = '';
       headers.forEach((h, idx) => {
         const opt = document.createElement('option');
         opt.value = idx;
-        opt.textContent = `${idx + 1}. ${h}`;
-        item.el.appendChild(opt);
-
-        const lower = h.toLowerCase();
-        if (bestMatch === -1 && item.keywords.some(k => lower.includes(k))) {
-          bestMatch = idx;
-        } else if (item.defaultIdx === 0 && bestMatch === 0 && item.keywords.some(k => lower.includes(k))) {
-          bestMatch = idx;
-        }
+        const sample = sampleRow[idx] !== undefined ? String(sampleRow[idx]).trim() : '';
+        opt.textContent = `${idx + 1}. ${h}${sample ? ` (cth: ${sample})` : ''}`;
+        excelColIdSelector.appendChild(opt);
       });
+      excelColIdSelector.value = bestIdIdx;
+    }
 
-      item.el.value = bestMatch >= 0 ? bestMatch : (item.defaultIdx >= 0 ? item.defaultIdx : -1);
+    // Inisialisasi Konfigurasi Kolom Dinamis (Maksimal 6 Baris Kebawah)
+    excelColumnConfigs = headers.map((h, idx) => {
+      const lower = h.toLowerCase();
+      const sample = sampleRow[idx] !== undefined ? String(sampleRow[idx]).trim() : '';
+      const isIdCol = (idx === bestIdIdx);
+
+      let targetRow = 0;
+      let enabled = false;
+
+      if (!isIdCol) {
+        if (lower.includes('gram') || lower.includes('berat') || lower.includes('weight')) {
+          targetRow = 1;
+          enabled = true;
+        } else if (lower.includes('vault') || lower.includes('lemari') || lower.includes('laci') || lower.includes('kotak') || lower.includes('brankas') || lower.includes('rak') || lower.includes('box')) {
+          targetRow = 2;
+          enabled = true;
+        } else {
+          // Kolom lain otomatis aktif di baris 3 s/d 6 jika tersedia
+          targetRow = Math.min(6, Math.max(1, idx));
+          enabled = true;
+        }
+      }
+
+      return {
+        colIdx: idx,
+        name: h,
+        sampleVal: sample,
+        enabled: enabled,
+        targetRow: targetRow
+      };
     });
 
+    renderExcelColumnMapping();
     updateExcelSample();
+  }
+
+  function renderExcelColumnMapping() {
+    if (!excelColumnsMappingContainer) return;
+    excelColumnsMappingContainer.innerHTML = '';
+
+    excelColumnConfigs.forEach((cfg) => {
+      const isIdCol = (cfg.colIdx === excelBarcodeColIdx);
+      const rowDiv = document.createElement('div');
+      rowDiv.className = `flex items-center justify-between gap-2 p-1.5 rounded-lg border text-xs transition ${
+        isIdCol 
+          ? 'bg-slate-100 border-slate-200 opacity-60' 
+          : (cfg.enabled ? 'bg-white border-slate-300 shadow-2xs' : 'bg-slate-50 border-slate-200 text-slate-400')
+      }`;
+
+      // Left: Checkbox + Column Name + Sample Preview
+      const leftDiv = document.createElement('div');
+      leftDiv.className = 'flex items-center gap-2 truncate flex-1';
+
+      const chk = document.createElement('input');
+      chk.type = 'checkbox';
+      chk.checked = cfg.enabled && !isIdCol;
+      chk.disabled = isIdCol;
+      chk.className = 'rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer shrink-0';
+      chk.title = isIdCol ? 'Kolom ini digunakan sebagai Barcode ID' : 'Aktifkan/Nonaktifkan kolom ini pada stiker';
+
+      const labelWrap = document.createElement('div');
+      labelWrap.className = 'truncate leading-tight flex items-center gap-1.5 flex-wrap';
+
+      const colTitle = document.createElement('span');
+      colTitle.className = `font-bold text-[11px] ${cfg.enabled && !isIdCol ? 'text-slate-800' : 'text-slate-500'}`;
+      colTitle.textContent = `${cfg.colIdx + 1}. ${cfg.name}`;
+      labelWrap.appendChild(colTitle);
+
+      if (isIdCol) {
+        const idBadge = document.createElement('span');
+        idBadge.className = 'px-1.5 py-0.2 bg-indigo-100 text-indigo-700 font-bold text-[9px] rounded shrink-0';
+        idBadge.textContent = '🔑 Barcode ID';
+        labelWrap.appendChild(idBadge);
+      } else if (cfg.sampleVal) {
+        const sampleSpan = document.createElement('span');
+        sampleSpan.className = 'text-[10px] text-slate-400 font-mono truncate max-w-[140px]';
+        sampleSpan.textContent = `("${cfg.sampleVal}")`;
+        labelWrap.appendChild(sampleSpan);
+      }
+
+      leftDiv.appendChild(chk);
+      leftDiv.appendChild(labelWrap);
+      rowDiv.appendChild(leftDiv);
+
+      // Right: Target Row Selector (Baris 1 s/d Baris 6, atau Nonaktif)
+      const selectWrap = document.createElement('div');
+      selectWrap.className = 'shrink-0';
+
+      const sel = document.createElement('select');
+      sel.className = 'px-1.5 py-1 border border-slate-300 rounded font-semibold text-[11px] bg-slate-50 text-slate-700 outline-none cursor-pointer';
+      sel.disabled = isIdCol;
+
+      const rowOptions = [
+        { val: 1, text: 'Baris 1' },
+        { val: 2, text: 'Baris 2' },
+        { val: 3, text: 'Baris 3' },
+        { val: 4, text: 'Baris 4' },
+        { val: 5, text: 'Baris 5' },
+        { val: 6, text: 'Baris 6' },
+        { val: 0, text: '❌ Nonaktif' }
+      ];
+
+      rowOptions.forEach(opt => {
+        const optEl = document.createElement('option');
+        optEl.value = opt.val;
+        optEl.textContent = opt.text;
+        sel.appendChild(optEl);
+      });
+
+      sel.value = (!cfg.enabled || isIdCol) ? 0 : (cfg.targetRow || 1);
+
+      // Listener Checkbox toggle
+      chk.addEventListener('change', () => {
+        cfg.enabled = chk.checked;
+        if (cfg.enabled && cfg.targetRow === 0) {
+          cfg.targetRow = 1;
+        }
+        sel.value = cfg.enabled ? cfg.targetRow : 0;
+        renderExcelColumnMapping();
+        updateExcelSample();
+      });
+
+      // Listener Row dropdown
+      sel.addEventListener('change', () => {
+        const val = parseInt(sel.value, 10);
+        if (val === 0) {
+          cfg.enabled = false;
+          cfg.targetRow = 0;
+          chk.checked = false;
+        } else {
+          cfg.enabled = true;
+          cfg.targetRow = val;
+          chk.checked = true;
+        }
+        renderExcelColumnMapping();
+        updateExcelSample();
+      });
+
+      selectWrap.appendChild(sel);
+      rowDiv.appendChild(selectWrap);
+
+      excelColumnsMappingContainer.appendChild(rowDiv);
+    });
   }
 
   function updateExcelSample() {
     if (!excelRawRows || !excelRawRows.length) return;
     const firstRow = excelRawRows[0] || [];
 
-    if (excelFormatMode === 'gold') {
-      const is2Lines = goldLayout2lines ? goldLayout2lines.checked : true;
-      const formatted = formatGoldRowLabel(firstRow, is2Lines);
-      const idIdx = parseInt(goldColId ? goldColId.value : '0', 10) || 0;
-      const sampleId = String(firstRow[idIdx] !== undefined ? firstRow[idIdx] : '').trim() || '(ID Otomatis)';
+    const { labelLines } = formatRowFromConfigs(firstRow);
+    const sampleId = String(firstRow[excelBarcodeColIdx] !== undefined ? firstRow[excelBarcodeColIdx] : '').trim() || '(ID Otomatis)';
 
-      if (excelSampleGoldPreview) {
-        if (is2Lines && formatted.includes('\n')) {
-          const [l1, l2] = formatted.split('\n');
-          excelSampleGoldPreview.innerHTML = `
-            <div class="font-bold text-amber-950 flex items-center gap-1.5">
-              <span class="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block"></span>
-              <span>${escapeHtml(l1)}</span>
-            </div>
-            <div class="text-[11px] text-slate-600 pl-3 font-medium">${escapeHtml(l2)}</div>
-          `;
-        } else {
-          excelSampleGoldPreview.innerHTML = `<span class="font-bold text-amber-950">${escapeHtml(formatted)}</span>`;
-        }
-      }
+    if (excelSampleGoldPreview) {
+      if (labelLines.length === 0) {
+        excelSampleGoldPreview.innerHTML = `<span class="text-slate-400 italic text-[11px]">Tidak ada kolom aktif yang ditampilkan pada label.</span>`;
+      } else {
+        const rowColors = [
+          'bg-amber-100 text-amber-900 border-amber-300 font-bold',
+          'bg-indigo-50 text-indigo-800 border-indigo-200 font-semibold',
+          'bg-emerald-50 text-emerald-800 border-emerald-200 font-semibold',
+          'bg-sky-50 text-sky-800 border-sky-200 font-semibold',
+          'bg-purple-50 text-purple-800 border-purple-200 font-semibold',
+          'bg-rose-50 text-rose-800 border-rose-200 font-semibold'
+        ];
 
-      if (excelSampleIdPreview) {
-        excelSampleIdPreview.textContent = `Barcode ID: ${sampleId}`;
+        excelSampleGoldPreview.innerHTML = labelLines.map((line, idx) => `
+          <div class="flex items-center gap-1.5 truncate">
+            <span class="px-1.5 py-0.2 rounded text-[9px] border shrink-0 ${rowColors[idx % rowColors.length]}">Baris ${idx + 1}</span>
+            <span class="truncate ${idx === 0 ? 'font-bold text-slate-900' : 'text-slate-700 font-medium'}">${escapeHtml(line)}</span>
+          </div>
+        `).join('');
       }
-    } else {
-      const colIdIdx = parseInt(excelColId ? excelColId.value : '0', 10) || 0;
-      const colLabelIdx = parseInt(excelColLabel ? excelColLabel.value : '-1', 10);
-      const sampleId = String(firstRow[colIdIdx] !== undefined ? firstRow[colIdIdx] : '').trim() || '(kosong)';
-      const sampleLabel = (colLabelIdx >= 0 && firstRow[colLabelIdx] !== undefined) ? String(firstRow[colLabelIdx]).trim() : '';
+    }
 
-      if (excelSampleGoldPreview) {
-        excelSampleGoldPreview.innerHTML = sampleLabel 
-          ? `<span class="font-bold text-slate-800">${escapeHtml(sampleLabel)}</span>`
-          : `<span class="text-slate-400 italic">Tanpa Label Produk</span>`;
-      }
-      if (excelSampleIdPreview) {
-        excelSampleIdPreview.textContent = `Barcode ID: ${sampleId}`;
-      }
+    if (excelSampleIdPreview) {
+      excelSampleIdPreview.textContent = `Barcode ID: ${sampleId}`;
     }
   }
 
@@ -1049,7 +1177,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Brand Selector Listeners
-  [goldBrandHarta, goldBrandAntam, goldBrandCustomRadio].forEach(radio => {
+  [goldBrandHarta, goldBrandAntam, goldBrandCustomRadio, goldBrandNone].forEach(radio => {
     if (radio) {
       radio.addEventListener('change', updateExcelSample);
     }
@@ -1063,6 +1191,65 @@ document.addEventListener('DOMContentLoaded', () => {
     goldBrandCustomInput.addEventListener('focus', () => {
       if (goldBrandCustomRadio) goldBrandCustomRadio.checked = true;
       updateExcelSample();
+    });
+  }
+
+  // Excel Column ID Selector
+  if (excelColIdSelector) {
+    excelColIdSelector.addEventListener('change', () => {
+      excelBarcodeColIdx = parseInt(excelColIdSelector.value, 10) || 0;
+      renderExcelColumnMapping();
+      updateExcelSample();
+    });
+  }
+
+  // Excel Preset Buttons
+  if (btnExcelPresetGold) {
+    btnExcelPresetGold.addEventListener('click', () => {
+      if (!Array.isArray(excelColumnConfigs)) return;
+      // Gold preset: Gramasi→Row1, rest→Row2
+      excelColumnConfigs.forEach(cfg => {
+        if (cfg.colIdx === excelBarcodeColIdx) { cfg.enabled = false; return; }
+        const name = (cfg.colName || '').toLowerCase();
+        if (name.includes('gramasi') || name.includes('gram') || name.includes('weight')) {
+          cfg.enabled = true; cfg.targetRow = 1;
+        } else if (name.includes('vault') || name.includes('lemari') || name.includes('laci') || name.includes('kotak') ||
+                   name.includes('brankas') || name.includes('cabinet') || name.includes('drawer') || name.includes('box')) {
+          cfg.enabled = true; cfg.targetRow = 2;
+        } else {
+          cfg.enabled = true; cfg.targetRow = 3;
+        }
+      });
+      renderExcelColumnMapping();
+      updateExcelSample();
+    });
+  }
+
+  if (btnExcelPresetLinear) {
+    btnExcelPresetLinear.addEventListener('click', () => {
+      if (!Array.isArray(excelColumnConfigs)) return;
+      // Linear preset: 1 column per row sequentially
+      let rowNum = 1;
+      excelColumnConfigs.forEach(cfg => {
+        if (cfg.colIdx === excelBarcodeColIdx) { cfg.enabled = false; return; }
+        cfg.enabled = true;
+        cfg.targetRow = Math.min(rowNum, 6);
+        rowNum++;
+      });
+      renderExcelColumnMapping();
+      updateExcelSample();
+    });
+  }
+
+  // Print Scope Toggle (All vs Per Sheet)
+  if (printScopeAll) {
+    printScopeAll.addEventListener('change', () => {
+      if (printSheetSelectorGroup) printSheetSelectorGroup.style.display = printScopeAll.checked ? 'none' : '';
+    });
+  }
+  if (printScopeSheet) {
+    printScopeSheet.addEventListener('change', () => {
+      if (printSheetSelectorGroup) printSheetSelectorGroup.style.display = printScopeSheet.checked ? '' : 'none';
     });
   }
 
@@ -1375,12 +1562,12 @@ document.addEventListener('DOMContentLoaded', () => {
     liveDesignPreviewCanvas.style.maxWidth = '280px';
     liveDesignPreviewCanvas.style.height = 'auto';
 
-    const sampleTitle = (topLabelInput && topLabelInput.value.trim()) || 'Harta - 0.5 gr';
+    const sampleTitle = (topLabelInput && topLabelInput.value.trim()) || 'Hartadinata - 0.5 gr';
     const sampleOptions = {
       ...renderOpts,
       targetWidth: previewW,
       targetHeight: previewH,
-      brand: 'Harta',
+      brand: 'Hartadinata',
       gramasi: '0.5 gr',
       vault: 'Vault 1',
       lemari: 'Lemari 1',
@@ -1490,12 +1677,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         case 'custom':
           if (excelRawRows && excelRawRows.length > 0) {
-            const isGold = excelFormatMode === 'gold';
-            const colIdIdx = isGold
-              ? (parseInt(goldColId ? goldColId.value : '0', 10) || 0)
-              : (parseInt(excelColId ? excelColId.value : '0', 10) || 0);
-            const colLabelIdx = parseInt(excelColLabel ? excelColLabel.value : '-1', 10);
-            const is2Lines = goldLayout2lines ? goldLayout2lines.checked : true;
+            const colIdIdx = excelBarcodeColIdx || 0;
 
             const itemsFromExcel = [];
             const seenInBatch = new Set();
@@ -1511,38 +1693,35 @@ document.addEventListener('DOMContentLoaded', () => {
               }
               seenInBatch.add(val);
 
-              let rowLabel = '';
-              let brandVal = '';
+              // Build labelLines from dynamic column configs
+              const { labelLines, fullLabel } = formatRowFromConfigs(row);
+
+              // Also extract legacy fields for backward compat
+              let brandVal = getGoldBrand() || '';
               let gramasiVal = '';
               let vaultVal = '';
               let lemariVal = '';
               let laciVal = '';
               let kotakVal = '';
 
-              if (isGold) {
-                rowLabel = formatGoldRowLabel(row, is2Lines);
-                if (goldBrandHarta && goldBrandHarta.checked) brandVal = 'Harta';
-                else if (goldBrandAntam && goldBrandAntam.checked) brandVal = 'Antam';
-                else if (goldBrandCustomInput && goldBrandCustomInput.value.trim()) brandVal = goldBrandCustomInput.value.trim();
-
-                const cGramasi = parseInt(goldColGramasi ? goldColGramasi.value : '-1', 10);
-                const cVault = parseInt(goldColVault ? goldColVault.value : '-1', 10);
-                const cLemari = parseInt(goldColLemari ? goldColLemari.value : '-1', 10);
-                const cLaci = parseInt(goldColLaci ? goldColLaci.value : '-1', 10);
-                const cKotak = parseInt(goldColKotak ? goldColKotak.value : '-1', 10);
-
-                gramasiVal = cGramasi >= 0 && row[cGramasi] !== undefined ? String(row[cGramasi]).trim() : '';
-                vaultVal = cVault >= 0 && row[cVault] !== undefined ? String(row[cVault]).trim() : '';
-                lemariVal = cLemari >= 0 && row[cLemari] !== undefined ? String(row[cLemari]).trim() : '';
-                laciVal = cLaci >= 0 && row[cLaci] !== undefined ? String(row[cLaci]).trim() : '';
-                kotakVal = cKotak >= 0 && row[cKotak] !== undefined ? String(row[cKotak]).trim() : '';
-              } else {
-                rowLabel = (colLabelIdx >= 0 && row[colLabelIdx] !== undefined) ? String(row[colLabelIdx]).trim() : '';
+              // Try to extract from configs if they match known field names
+              if (Array.isArray(excelColumnConfigs)) {
+                excelColumnConfigs.forEach(cfg => {
+                  if (!cfg.enabled || cfg.colIdx === colIdIdx) return;
+                  const v = row[cfg.colIdx] !== undefined ? String(row[cfg.colIdx]).trim() : '';
+                  const name = (cfg.colName || '').toLowerCase();
+                  if (name.includes('gramasi') || name.includes('gram') || name.includes('weight')) gramasiVal = v;
+                  else if (name.includes('vault') || name.includes('brankas')) vaultVal = v;
+                  else if (name.includes('lemari') || name.includes('cabinet')) lemariVal = v;
+                  else if (name.includes('laci') || name.includes('drawer')) laciVal = v;
+                  else if (name.includes('kotak') || name.includes('box')) kotakVal = v;
+                });
               }
 
               itemsFromExcel.push({
                 id: val,
-                label: rowLabel,
+                label: fullLabel,
+                labelLines: labelLines,
                 brand: brandVal,
                 gramasi: gramasiVal,
                 vault: vaultVal,
@@ -2503,6 +2682,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (prevVal < totalSheets) {
       printSheetSelect.value = prevVal;
     }
+
+    // Update total labels badge
+    if (printTotalLabelsBadge) {
+      printTotalLabelsBadge.textContent = `${items.length} label · ${totalSheets} lembar`;
+    }
   }
 
   // --- DOWNLOAD FULL SHEET (CUSTOM / TOM & JERRY 107) ---
@@ -2582,6 +2766,8 @@ document.addEventListener('DOMContentLoaded', () => {
   btnExecutePrint.addEventListener('click', () => {
     const selectedLayout = document.querySelector('input[name="print-layout"]:checked').value;
     const showBorders = document.getElementById('print-show-borders-chk')?.checked;
+    const printScope = document.querySelector('input[name="print-scope"]:checked');
+    const isPrintAll = printScope && printScope.value === 'all';
 
     document.body.classList.remove(
       'print-mode-tj-107',
@@ -2603,9 +2789,46 @@ document.addEventListener('DOMContentLoaded', () => {
       switchView('grid');
     }
 
-    setTimeout(() => {
-      window.print();
-    }, 200);
+    if (isPrintAll) {
+      // Print All: render ALL items into grid temporarily
+      const items = lastFilteredItems.length ? lastFilteredItems : generatedItems;
+      if (items.length === 0) {
+        showToast('Tidak ada barcode untuk dicetak.', 'error');
+        return;
+      }
+
+      const renderOpts = getRenderOptions();
+      const sheetCap = renderOpts.cols * renderOpts.rows;
+      const totalSheets = Math.ceil(items.length / sheetCap);
+      const gridEl = document.getElementById('barcode-grid');
+      const prevHTML = gridEl.innerHTML;
+
+      // Build multi-page grid
+      gridEl.innerHTML = '';
+      for (let s = 0; s < totalSheets; s++) {
+        const sheetDiv = document.createElement('div');
+        sheetDiv.className = 'print-page-sheet';
+        const start = s * sheetCap;
+        const end = Math.min(start + sheetCap, items.length);
+        for (let i = start; i < end; i++) {
+          const card = createBarcodeCard(items[i], i, renderOpts);
+          sheetDiv.appendChild(card);
+        }
+        gridEl.appendChild(sheetDiv);
+      }
+
+      setTimeout(() => {
+        window.print();
+        // Restore original grid after print
+        setTimeout(() => {
+          gridEl.innerHTML = prevHTML;
+        }, 500);
+      }, 300);
+    } else {
+      setTimeout(() => {
+        window.print();
+      }, 200);
+    }
   });
 
   // --- HISTORY MODAL ACTIONS ---
