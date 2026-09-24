@@ -141,6 +141,12 @@
       }
     }
 
+    // Line border solid hitam 1px frame label
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([]);
+    ctx.strokeRect(0.5, 0.5, labelW - 1, labelH - 1);
+
     const defaultFilename = filename || `stiker_${labelWidthMm}x${labelHeightMm}mm_${String(id).replace(/[^a-zA-Z0-9_-]/g, '_')}.png`;
 
     return new Promise((resolve) => {
@@ -376,11 +382,6 @@
 
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, labelW, labelH);
-      ctx.strokeStyle = '#cbd5e1';
-      ctx.lineWidth = 1.5;
-      ctx.setLineDash([6, 4]);
-      ctx.strokeRect(0, 0, labelW, labelH);
-      ctx.setLineDash([]);
 
       if (engine) {
         engine.renderToCanvas(tempCanvas, id, {
@@ -427,6 +428,12 @@
           ctx.drawImage(tempCanvas, drawX, drawY, drawW, drawH);
         }
       }
+
+      // Line border solid hitam 1px frame label
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([]);
+      ctx.strokeRect(0.5, 0.5, labelW - 1, labelH - 1);
 
       bytes = await canvasToUint8Array(stickerCanvas);
       const safeFilename = `stiker_${labelWidthMm}x${labelHeightMm}mm_${String(id).replace(/[^a-zA-Z0-9_-]/g, '_')}.png`;
@@ -500,15 +507,6 @@
       const x = leftMargin + (col * horizPitch);
       const y = topMargin + (row * vertPitch);
 
-      // Gambar batas stiker (jika showBorders diaktifkan)
-      if (showBorders) {
-        ctx.strokeStyle = '#cbd5e1';
-        ctx.lineWidth = 1.5;
-        ctx.setLineDash([8, 6]);
-        ctx.strokeRect(x, y, labelW, labelH);
-        ctx.setLineDash([]);
-      }
-
       // Render barcode ke canvas sementara
       const tempCanvas = document.createElement('canvas');
       if (engine) {
@@ -555,6 +553,14 @@
           ctx.imageSmoothingEnabled = false;
           ctx.drawImage(tempCanvas, drawX, drawY, drawW, drawH);
         }
+      }
+
+      // Gambar batas stiker garis solid 1px hitam (jika showBorders diaktifkan)
+      if (showBorders) {
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([]);
+        ctx.strokeRect(x + 0.5, y + 0.5, labelW - 1, labelH - 1);
       }
     }
 
@@ -637,6 +643,92 @@
     doc.save(defaultFilename);
   }
 
+  /**
+   * 7. Download Full Sheet Word Document (.docx) - Mendukung Satu Lembar atau SEMUA Halaman Sekaligus
+   * Gambar label dimasukkan ke dalam dokumen Word dengan ukuran dan tata letak yang proporsional sehingga siap diprint.
+   */
+  async function downloadFullSheetDocx(items, barcodeRenderOptions, sheetIndex = 'all', showBorders = true, filename = null) {
+    if (!items || !items.length) {
+      alert('Tidak ada barcode untuk diekspor ke Word (.docx).');
+      return;
+    }
+
+    const docxLib = (typeof window !== 'undefined' && window.docx) ||
+                    (typeof root !== 'undefined' && root && root.docx) ||
+                    (typeof require === 'function' ? (function(){ try { return require('./docx.umd.js'); } catch(e){ return null; } })() : null);
+
+    if (!docxLib) {
+      alert('Modul docx tidak ditemukan. Pastikan library docx.umd.js telah dimuat.');
+      return;
+    }
+
+    const paperWidthMm = barcodeRenderOptions.paperWidthMm || 165;
+    const paperHeightMm = barcodeRenderOptions.paperHeightMm || 210;
+    const cols = barcodeRenderOptions.cols || 3;
+    const rows = barcodeRenderOptions.rows || 10;
+    const itemsPerPage = Math.max(1, cols * rows);
+    const totalSheets = Math.ceil(items.length / itemsPerPage);
+
+    const isAll = sheetIndex === 'all';
+    const sheetsToExport = isAll
+      ? Array.from({ length: totalSheets }, (_, i) => i)
+      : [parseInt(sheetIndex, 10) || 0];
+
+    // Konversi milimeter ke twip & pixel (96 DPI untuk Word)
+    const mmToTwip = docxLib.convertMillimetersToTwip || ((mm) => Math.round(mm * 56.6929));
+    const paperTwipW = mmToTwip(paperWidthMm);
+    const paperTwipH = mmToTwip(paperHeightMm);
+    const imagePixelW = Math.round(paperWidthMm * (96 / 25.4));
+    const imagePixelH = Math.round(paperHeightMm * (96 / 25.4));
+
+    const sections = [];
+
+    for (let idx = 0; idx < sheetsToExport.length; idx++) {
+      const sIdx = sheetsToExport[idx];
+      const sheetCanvas = renderSheetToCanvas(items, barcodeRenderOptions, sIdx, showBorders);
+      const imgBytes = await canvasToUint8Array(sheetCanvas);
+
+      sections.push({
+        properties: {
+          page: {
+            size: {
+              width: paperTwipW,
+              height: paperTwipH
+            },
+            margin: {
+              top: 0,
+              bottom: 0,
+              left: 0,
+              right: 0
+            }
+          }
+        },
+        children: [
+          new docxLib.Paragraph({
+            spacing: { before: 0, after: 0, line: 240 },
+            children: [
+              new docxLib.ImageRun({
+                data: imgBytes,
+                transformation: {
+                  width: imagePixelW,
+                  height: imagePixelH
+                }
+              })
+            ]
+          })
+        ]
+      });
+    }
+
+    const doc = new docxLib.Document({
+      sections: sections
+    });
+
+    const defaultFilename = filename || (isAll ? 'Label_Tom_Jerry_107_Semua_Halaman.docx' : `Label_Tom_Jerry_107_Halaman_${(parseInt(sheetIndex, 10) || 0) + 1}.docx`);
+    const blob = await docxLib.Packer.toBlob(doc);
+    triggerDownload(blob, defaultFilename);
+  }
+
   return {
     downloadPNG,
     downloadSingleStickerPNG,
@@ -646,6 +738,7 @@
     renderSheetToCanvas,
     downloadFullSheetPNG,
     downloadFullSheetPDF,
+    downloadFullSheetDocx,
     MiniZip
   };
 });

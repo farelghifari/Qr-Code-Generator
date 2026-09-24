@@ -281,15 +281,18 @@ def pull_from_filebrowser():
         if e.code == 404:
             print(f"[FileBrowser Pull] File belum ada di Docker (404), skip")
         else:
-            print(f"[FileBrowser Pull] ⚠️ HTTP Error: {e}")
+            print(f"[FileBrowser Pull] [!] HTTP Error: {e}")
         return False
     except Exception as e:
-        print(f"[FileBrowser Pull] ⚠️ Gagal pull: {e}")
+        print(f"[FileBrowser Pull] [!] Gagal pull: {e}")
         return False
 
 # === Auto-pull dari Docker saat server startup ===
 print("[Startup] Menarik data terbaru dari Docker FileBrowser...")
-pull_from_filebrowser()
+try:
+    pull_from_filebrowser()
+except Exception as e:
+    print(f"[Startup] Docker FileBrowser tidak tersedia, melanjutkan tanpa pull: {e}")
 class CustomHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=DIRECTORY, **kwargs)
