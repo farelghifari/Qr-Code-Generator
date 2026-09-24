@@ -703,7 +703,24 @@ console.log('32. Menguji Single-Line Fitted ID Under QR, Uniform Detail Font Siz
   console.log('✅ Single-Line Fitted ID, Uniform Detail Font, dan Equal Margin 4 Sisi LULUS.');
 }
 
-console.log('\n🎉 SEMUA 32 PENGUJIAN VERIFIKASI BERHASIL 100%!');
+// Test 33: Word Export (.docx) & Line Border Verification
+console.log('33. Menguji Modul Ekspor Word (.docx) & Line Border Label...');
+assert(typeof BarcodeExporter.downloadFullSheetDocx === 'function', 'downloadFullSheetDocx harus terdefinisi sebagai fungsi');
+const docxLib = require('../js/docx.umd.js');
+assert(docxLib && docxLib.Document && docxLib.Packer, 'Library docx.umd.js harus memuat Document dan Packer');
+
+// Verifikasi rendering border line 1px solid black di SVG
+const svgSample = BarcodeEngine.renderQRCodeToSVG('ORD-TEST-BORDER', {
+  labelWidthMm: 50,
+  labelHeightMm: 18,
+  layoutPosition: 'side-left',
+  showBorder: true
+});
+assert(svgSample.includes('stroke="#000000"'), 'SVG label harus menyertakan line border hitam');
+assert(svgSample.includes('stroke-width="1"'), 'SVG label harus menyertakan border width 1px');
+console.log('✅ Modul Ekspor Word (.docx) & Line Border LULUS.');
+
+console.log('\n🎉 SEMUA 33 PENGUJIAN VERIFIKASI BERHASIL 100%!');
 
 
 

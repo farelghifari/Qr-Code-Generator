@@ -653,7 +653,7 @@
                 <span id="live-preview-dim-tag" class="text-[10px] font-mono text-indigo-700 bg-indigo-50 px-1.5 py-0.2 rounded font-bold border border-indigo-200">50 × 18 mm</span>
               </div>
               <div class="p-2 bg-slate-100/90 rounded-xl border border-slate-200 flex items-center justify-center overflow-hidden min-h-[80px]">
-                <canvas id="live-design-preview-canvas" class="max-w-full h-auto bg-white rounded-md shadow-xs border border-slate-300"></canvas>
+                <canvas id="live-design-preview-canvas" class="max-w-full h-auto bg-white border border-black"></canvas>
               </div>
               <div class="text-[10px] text-slate-400 text-center italic">Posisi layout & ukuran font langsung terlihat secara real-time</div>
 
@@ -780,6 +780,14 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
               CSV
+            </button>
+
+            <!-- Export to Word Button -->
+            <button type="button" id="btn-export-word" class="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold shadow-sm transition flex items-center gap-1 whitespace-nowrap" title="Export semua lembar label ke dokumen Microsoft Word (.docx)">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-blue-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <span>Export to Word</span>
             </button>
 
             <!-- Download Sheet Image Button -->
@@ -1201,6 +1209,16 @@
           </button>
         </div>
 
+        <!-- OPSI WORD DOWNLOAD -->
+        <div class="grid grid-cols-2 gap-2">
+          <button type="button" id="btn-download-word-all" class="w-full px-3 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition flex items-center justify-center gap-1.5" title="Download semua lembaran ke Microsoft Word (.docx)">
+            <span>📘</span> Export to Word (Semua Hal)
+          </button>
+          <button type="button" id="btn-download-word-sheet" class="w-full px-3 py-2 text-xs font-bold text-blue-900 bg-blue-50 hover:bg-blue-100 border border-blue-300 rounded-lg shadow-sm transition flex items-center justify-center gap-1.5" title="Download hanya lembar aktif ke Microsoft Word (.docx)">
+            <span>📄</span> Export to Word (Lembar Ini)
+          </button>
+        </div>
+
         <!-- OPSI PNG & CETAK BROWSER -->
         <div class="flex flex-wrap items-center justify-between gap-2 pt-1">
           <button type="button" id="btn-download-sheet-png" class="px-3.5 py-2 text-xs font-bold text-amber-950 bg-amber-200 hover:bg-amber-300 border border-amber-400 rounded-lg shadow-sm transition flex items-center gap-1.5">
@@ -1498,6 +1516,7 @@
 
   <!-- Local Modular Scripts -->
   <script src="js/jspdf.umd.min.js"></script>
+  <script src="js/docx.umd.js"></script>
   <script src="js/barcode-engine.js"></script>
   <script src="js/id-generator.js"></script>
   <script src="js/exporter.js"></script>

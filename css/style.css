@@ -98,33 +98,33 @@ body {
   aspect-ratio: 50 / 18;
   max-height: 120px;
   background: #ffffff;
-  border: 1.5px dashed #cbd5e1;
-  border-radius: 6px;
+  border: 1px solid #000000;
+  border-radius: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 4px 6px;
   position: relative;
   transition: all 0.2s ease;
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.02);
+  box-shadow: none;
 }
 
 .label-sticker-cutout:hover {
-  border-color: #f59e0b;
-  background-color: #fffbeb;
+  border-color: #000000;
+  background-color: #ffffff;
 }
 
 .label-sticker-cutout .cutout-tag {
   position: absolute;
-  top: 3px;
-  right: 5px;
+  top: 2px;
+  right: 3px;
   font-size: 8px;
-  font-weight: 700;
-  color: #92400e;
-  background: #fef3c7;
+  font-weight: 600;
+  color: #475569;
+  background: #f1f5f9;
   padding: 1px 4px;
-  border-radius: 3px;
-  border: 0.5px solid #fde68a;
+  border-radius: 2px;
+  border: 1px solid #cbd5e1;
   pointer-events: none;
 }
 
@@ -575,7 +575,7 @@ body {
   /* Styling kartu item saat dicetak */
   .barcode-item-card {
     box-shadow: none !important;
-    border: 1px dashed #cccccc !important;
+    border: 1px solid #000000 !important;
     background: #ffffff !important;
     page-break-inside: avoid !important;
     break-inside: avoid !important;
@@ -602,6 +602,13 @@ canvas.crisp-hd,
   image-rendering: crisp-edges;
   image-rendering: pixelated;
   -webkit-font-smoothing: antialiased;
+}
+
+#live-design-preview-canvas {
+  border: 1px solid #000000 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: #ffffff !important;
 }
 
 #btn-total-registered:hover #registry-count-badge {

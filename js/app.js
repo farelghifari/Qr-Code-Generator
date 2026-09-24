@@ -300,6 +300,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnGenerate = document.getElementById('btn-generate');
   const btnDownloadZip = document.getElementById('btn-download-zip');
   const btnExportCsv = document.getElementById('btn-export-csv');
+  const btnExportWord = document.getElementById('btn-export-word');
   const btnQuickDownloadSheet = document.getElementById('btn-quick-download-sheet');
   const btnOpenPrintModal = document.getElementById('btn-open-print-modal');
   const btnTestRenderPreview = document.getElementById('btn-test-render-preview');
@@ -355,6 +356,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnDownloadSheetPng = document.getElementById('btn-download-sheet-png');
   const btnDownloadPdfAll = document.getElementById('btn-download-pdf-all');
   const btnDownloadPdfSheet = document.getElementById('btn-download-pdf-sheet');
+  const btnDownloadWordAll = document.getElementById('btn-download-word-all');
+  const btnDownloadWordSheet = document.getElementById('btn-download-word-sheet');
   const printSheetPreviewCanvas = document.getElementById('print-sheet-preview-canvas');
   const printPreviewSheetTag = document.getElementById('print-preview-sheet-tag');
   const printShowBordersChk = document.getElementById('print-show-borders-chk');
@@ -3746,6 +3749,73 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnDownloadPdfSheet) {
     btnDownloadPdfSheet.addEventListener('click', () => {
       triggerPDFDownload('sheet');
+    });
+  }
+
+  // --- DOWNLOAD WORD (.DOCX) SHEET (ALL PAGES OR SINGLE SHEET) ---
+  async function triggerWordDownload(scope = 'all') {
+    const items = lastFilteredItems.length ? lastFilteredItems : generatedItems;
+    if (!items.length) {
+      showToast('Tidak ada barcode untuk diekspor ke Word (.docx).', 'error');
+      return;
+    }
+
+    const showBorders = printShowBordersChk ? printShowBordersChk.checked : true;
+    const renderOpts = getRenderOptions();
+    const sheetIdx = scope === 'all' ? 'all' : (parseInt(printSheetSelect ? printSheetSelect.value : '0', 10) || 0);
+
+    loadingOverlay.classList.add('active');
+    loadingText.textContent = scope === 'all' 
+      ? 'Menyusun dokumen Word (.docx) untuk semua halaman stiker...'
+      : `Menyusun dokumen Word (.docx) untuk Lembar ${sheetIdx + 1}...`;
+
+    try {
+      await BarcodeExporter.downloadFullSheetDocx(
+        items,
+        renderOpts,
+        sheetIdx,
+        showBorders
+      );
+
+      // Tandai barcode yang diekspor sebagai sudah dicetak
+      const nowStr = new Date().toISOString();
+      const sheetCap = renderOpts.cols * renderOpts.rows;
+      const printedItems = sheetIdx === 'all'
+        ? items
+        : items.slice(sheetIdx * sheetCap, Math.min((sheetIdx + 1) * sheetCap, items.length));
+      printedItems.forEach(it => {
+        it.status = 'printed';
+        it.printedAt = nowStr;
+      });
+      saveItemsToStorage();
+      pushStatusToServer(printedItems.map(it => it.id).filter(Boolean), 'printed');
+      renderAllViews();
+      updateStats();
+
+      showToast(scope === 'all' ? 'Dokumen Word (.docx) Semua Halaman berhasil diunduh!' : `Dokumen Word (.docx) Lembar ${sheetIdx + 1} berhasil diunduh!`, 'success');
+    } catch (err) {
+      console.error('Gagal unduh Word (.docx):', err);
+      showToast('Gagal mengunduh Word: ' + err.message, 'error');
+    } finally {
+      loadingOverlay.classList.remove('active');
+    }
+  }
+
+  if (btnExportWord) {
+    btnExportWord.addEventListener('click', () => {
+      triggerWordDownload('all');
+    });
+  }
+
+  if (btnDownloadWordAll) {
+    btnDownloadWordAll.addEventListener('click', () => {
+      triggerWordDownload('all');
+    });
+  }
+
+  if (btnDownloadWordSheet) {
+    btnDownloadWordSheet.addEventListener('click', () => {
+      triggerWordDownload('sheet');
     });
   }
 

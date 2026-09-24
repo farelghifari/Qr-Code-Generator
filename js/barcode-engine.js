@@ -542,12 +542,13 @@
         totalIdH = fitIdSize + idGap;
       }
 
-      // 5. Penempatan QR + ID: Jarak border sama persis
+      // 5. Penempatan QR + ID: Jarak border dengan ekstra margin/padding (15px - 20px) agar bergeser ke tengah dan tidak mepet garis pinggir kertas
       const totalGroupH = qrPixelSize + (showIdUnder ? totalIdH : 0);
       const qrY = effMargin + Math.max(0, Math.round((availH - totalGroupH) / 2));
       
-      // Jarak dari tepi luar label = effMargin
-      const qrX = isSideLeft ? effMargin : (width - effMargin - qrPixelSize);
+      // Ekstra margin/padding 15px - 20px dari tepi frame
+      const sideExtraPad = Math.max(15, Math.min(22, Math.round(18 * resScale)));
+      const qrX = isSideLeft ? (effMargin + sideExtraPad) : (width - effMargin - sideExtraPad - qrPixelSize);
       const qrCenter = qrX + Math.round(qrPixelSize / 2);
 
       // Gambar Modul QR Code
@@ -610,6 +611,13 @@
           ctx.fillText(qrText, anchorX, curLineY, maxTextW);
         }
       }
+    }
+
+    // Render line border (garis solid sederhana 1px solid black) untuk frame label bersih
+    if (options.showBorder !== false) {
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(0.5, 0.5, width - 1, height - 1);
     }
 
     return canvas;
@@ -783,7 +791,8 @@
 
         const totalGroupH = qrPixelSize + (showIdUnder ? totalIdH : 0);
         const qrY = effMargin + Math.max(0, Math.round((availH - totalGroupH) / 2));
-        const qrX = isSideLeft ? effMargin : (width - effMargin - qrPixelSize);
+        const sideExtraPad = Math.max(15, Math.min(22, Math.round(18 * resScale)));
+        const qrX = isSideLeft ? (effMargin + sideExtraPad) : (width - effMargin - sideExtraPad - qrPixelSize);
         const qrCenter = qrX + Math.round(qrPixelSize / 2);
 
         for (let r = 0; r < count; r++) {
@@ -836,11 +845,13 @@
       }
     }
 
+    const borderSvg = options.showBorder !== false ? `\n        <rect x="0.5" y="0.5" width="${width - 1}" height="${height - 1}" fill="none" stroke="#000000" stroke-width="1"/>` : '';
+
     return `
       <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
         <rect width="100%" height="100%" fill="${backgroundColor}" />
         ${rects}
-        ${textSvg}
+        ${textSvg}${borderSvg}
       </svg>
     `.trim();
   }
@@ -946,6 +957,12 @@
           ctx.imageSmoothingEnabled = false;
           ctx.drawImage(tempCanvas, barcodeX, labelHeight);
         }
+        if (options.showBorder !== false) {
+          const mainCtx = canvas.getContext('2d');
+          mainCtx.strokeStyle = '#000000';
+          mainCtx.lineWidth = 1;
+          mainCtx.strokeRect(0.5, 0.5, canvas.width - 1, canvas.height - 1);
+        }
         return canvas;
       } catch (err) {
         console.warn('JsBarcode gagal, menggunakan native engine:', err.message);
@@ -1016,6 +1033,12 @@
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
       ctx.fillText(resolvedDisplay, totalWidth / 2, currentY + height + 4);
+    }
+
+    if (options.showBorder !== false) {
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(0.5, 0.5, totalWidth - 1, totalHeight - 1);
     }
 
     return canvas;
