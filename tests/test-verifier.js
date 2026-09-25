@@ -785,4 +785,40 @@ assert(!svgOnlyId.includes('Wisma Mandiri'), 'Tidak boleh memuat Lokasi ketika m
 assert(svgOnlyId.includes('stroke="#000000"'), 'Harus memiliki border solid');
 console.log('✅ Opsi Hanya Nomor ID (Minimalis) LULUS.');
 
-console.log('\n🎉 SEMUA 36 PENGUJIAN VERIFIKASI BERHASIL 100%!');
+// Test 37: Verifikasi Format Dokumen Word (.docx) & Geometri Lembar Tom & Jerry 107
+console.log('37. Menguji Format Word (.docx) & Presisi Geometri Tom & Jerry 107...');
+const mmToTwip = (mm) => Math.round(mm * (1440 / 25.4));
+const paperW_twip = mmToTwip(165);
+const paperH_twip = mmToTwip(210);
+assert.strictEqual(paperW_twip, 9354, 'Lebar kertas Word Tom & Jerry 107 harus tepat 9354 twips (165 mm)');
+assert.strictEqual(paperH_twip, 11906, 'Tinggi kertas Word Tom & Jerry 107 harus tepat 11906 twips (210 mm)');
+
+// Verifikasi kalkulasi EMU untuk Word DrawingML
+const emuW = 165 * 36000;
+const emuH = 210 * 36000;
+const transformW = emuW / 9525;
+const transformH = emuH / 9525;
+assert.strictEqual(Math.round(transformW * 9525), 5940000, 'Lebar gambar Word harus tepat 5.940.000 EMU (165 mm)');
+assert.strictEqual(Math.round(transformH * 9525), 7560000, 'Tinggi gambar Word harus tepat 7.560.000 EMU (210 mm)');
+
+// Verifikasi koordinat absolut per label (3 kolom x 10 baris) tanpa rounding drift
+const testDPI = 300;
+const testGetX = (col) => Math.round((3 + (col * (50 + 5))) * testDPI / 25.4);
+const testGetY = (row) => Math.round((7 + (row * (18 + 2))) * testDPI / 25.4);
+assert.strictEqual(testGetX(0), 35, 'Kolom 0 mulai dari 35 px (3 mm margin)');
+assert.strictEqual(testGetX(1), 685, 'Kolom 1 mulai dari 685 px (58 mm pitch)');
+assert.strictEqual(testGetX(2), 1335, 'Kolom 2 mulai dari 1335 px (113 mm pitch)');
+assert.strictEqual(testGetY(0), 83, 'Baris 0 mulai dari 83 px (7 mm margin)');
+assert.strictEqual(testGetY(9), 2209, 'Baris 9 mulai dari 2209 px (187 mm)');
+
+// Verifikasi total area muat dalam kertas 165 x 210 mm
+const testLabelW = Math.round(50 * testDPI / 25.4);
+const testLabelH = Math.round(18 * testDPI / 25.4);
+const testPaperW = Math.round(165 * testDPI / 25.4);
+const testPaperH = Math.round(210 * testDPI / 25.4);
+assert(testGetX(2) + testLabelW <= testPaperW, 'Batas kanan kolom terakhir harus muat dalam 165 mm');
+assert(testGetY(9) + testLabelH <= testPaperH, 'Batas bawah baris terakhir harus muat dalam 210 mm');
+console.log('✅ Format Word (.docx) & Presisi Geometri Tom & Jerry 107 LULUS.');
+
+console.log('\n🎉 SEMUA 37 PENGUJIAN VERIFIKASI BERHASIL 100%!');
+

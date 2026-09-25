@@ -475,14 +475,8 @@
 
     const sheetW = mmToPx(paperWidthMm);
     const sheetH = mmToPx(paperHeightMm);
-    const topMargin = mmToPx(topMarginMm);
-    const leftMargin = mmToPx(leftMarginMm);
     const labelW = mmToPx(labelWidthMm);
     const labelH = mmToPx(labelHeightMm);
-    const colGap = mmToPx(colGapMm);
-    const rowGap = mmToPx(rowGapMm);
-    const horizPitch = labelW + colGap;
-    const vertPitch = labelH + rowGap;
 
     const sheetCanvas = document.createElement('canvas');
     sheetCanvas.width = sheetW;
@@ -506,8 +500,11 @@
       const col = i % cols;
       const row = Math.floor(i / cols);
 
-      const x = leftMargin + (col * horizPitch);
-      const y = topMargin + (row * vertPitch);
+      // Hitung koordinat fisik X dan Y secara absolut dalam milimeter untuk mencegah akumulasi rounding error
+      const xMm = leftMarginMm + (col * (labelWidthMm + colGapMm));
+      const yMm = topMarginMm + (row * (labelHeightMm + rowGapMm));
+      const x = Math.round((xMm * DPI) / 25.4);
+      const y = Math.round((yMm * DPI) / 25.4);
 
       // Render barcode ke canvas sementara
       const tempCanvas = document.createElement('canvas');
@@ -676,12 +673,16 @@
       ? Array.from({ length: totalSheets }, (_, i) => i)
       : [parseInt(sheetIndex, 10) || 0];
 
-    // Konversi milimeter ke twip & pixel (96 DPI untuk Word)
-    const mmToTwip = docxLib.convertMillimetersToTwip || ((mm) => Math.round(mm * 56.6929));
+    // Konversi milimeter ke twip & EMU (Word standard: 1 inch = 1440 twip = 914400 EMU = 25.4 mm)
+    // 1 mm = 1440 / 25.4 = ~56.6929 twip
+    const mmToTwip = (mm) => Math.round(mm * (1440 / 25.4));
     const paperTwipW = mmToTwip(paperWidthMm);
     const paperTwipH = mmToTwip(paperHeightMm);
-    const imagePixelW = Math.round(paperWidthMm * (96 / 25.4));
-    const imagePixelH = Math.round(paperHeightMm * (96 / 25.4));
+
+    // 1 mm = 36000 EMU. docxLib mengalikan transformation pixel dengan 9525 EMU (96 DPI).
+    // Maka transformation = (mm * 36000) / 9525 untuk ukuran fisik yang 100% presisi matematis tanpa scaling atau distorsi.
+    const imagePixelW = (paperWidthMm * 36000) / 9525;
+    const imagePixelH = (paperHeightMm * 36000) / 9525;
 
     const sections = [];
 
@@ -695,25 +696,47 @@
           page: {
             size: {
               width: paperTwipW,
-              height: paperTwipH
+              height: paperTwipH,
+              orientation: paperWidthMm > paperHeightMm
+                ? (docxLib.PageOrientation ? docxLib.PageOrientation.LANDSCAPE : 'landscape')
+                : (docxLib.PageOrientation ? docxLib.PageOrientation.PORTRAIT : 'portrait')
             },
             margin: {
               top: 0,
               bottom: 0,
               left: 0,
-              right: 0
+              right: 0,
+              header: 0,
+              footer: 0,
+              gutter: 0
             }
           }
         },
         children: [
           new docxLib.Paragraph({
-            spacing: { before: 0, after: 0, line: 240 },
+            spacing: {
+              before: 0,
+              after: 0,
+              line: 0,
+              lineRule: docxLib.LineRuleType ? docxLib.LineRuleType.EXACT : 'exact'
+            },
             children: [
               new docxLib.ImageRun({
                 data: imgBytes,
                 transformation: {
                   width: imagePixelW,
                   height: imagePixelH
+                },
+                floating: {
+                  horizontalPosition: {
+                    relative: docxLib.HorizontalPositionRelativeFrom ? docxLib.HorizontalPositionRelativeFrom.PAGE : 'page',
+                    align: docxLib.HorizontalPositionAlign ? docxLib.HorizontalPositionAlign.LEFT : 'left'
+                  },
+                  verticalPosition: {
+                    relative: docxLib.VerticalPositionRelativeFrom ? docxLib.VerticalPositionRelativeFrom.PAGE : 'page',
+                    align: docxLib.VerticalPositionAlign ? docxLib.VerticalPositionAlign.TOP : 'top'
+                  },
+                  behindDocument: true
                 }
               })
             ]
