@@ -820,5 +820,31 @@ assert(testGetX(2) + testLabelW <= testPaperW, 'Batas kanan kolom terakhir harus
 assert(testGetY(9) + testLabelH <= testPaperH, 'Batas bawah baris terakhir harus muat dalam 210 mm');
 console.log('✅ Format Word (.docx) & Presisi Geometri Tom & Jerry 107 LULUS.');
 
-console.log('\n🎉 SEMUA 37 PENGUJIAN VERIFIKASI BERHASIL 100%!');
+// Test 38: Verifikasi Mode Tanpa Border (Clean Borderless Stiker Label)
+console.log('38. Menguji Mode Default Tanpa Garis Border (Stiker Bersih)...');
+const svgCleanQR = BarcodeEngine.renderQRCodeToSVG('ORD-CLEAN-NO-BORDER', {
+  labelWidthMm: 50,
+  labelHeightMm: 18,
+  layoutPosition: 'side-left'
+});
+assert(!svgCleanQR.includes('stroke="#000000"'), 'Default label QR SVG tidak boleh memuat garis border stroke');
+
+const svgClean1D = BarcodeEngine.toSVGString('ORD00000000152900001', {
+  format: 'CODE128',
+  layoutPosition: 'center-compact',
+  labelWidthMm: 50,
+  labelHeightMm: 18
+});
+assert(!svgClean1D.includes('stroke="#000000"'), 'Default label 1D center-compact tidak boleh memuat garis border stroke');
+
+const svgCleanNone = BarcodeEngine.toSVGString('ORD00000000152900001', {
+  format: 'NONE',
+  labelWidthMm: 50,
+  labelHeightMm: 18
+});
+assert(!svgCleanNone.includes('stroke="#000000"'), 'Default label Tanpa Barcode tidak boleh memuat garis border stroke');
+console.log('✅ Mode Default Tanpa Garis Border (Stiker Bersih) LULUS.');
+
+console.log('\n🎉 SEMUA 38 PENGUJIAN VERIFIKASI BERHASIL 100%!');
+
 

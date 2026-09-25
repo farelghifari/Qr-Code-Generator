@@ -1890,6 +1890,7 @@ document.addEventListener('DOMContentLoaded', () => {
       idSliceChunk: idSliceSelect ? idSliceSelect.value : 'auto',
       barWidth: parseFloat(barWidthSlider ? barWidthSlider.value : '2') || 2,
       height: parseInt(barHeightSlider ? barHeightSlider.value : '45', 10) || 45,
+      showBorder: Boolean(printShowBordersChk && printShowBordersChk.checked),
       margin: 6,
       lineColor: '#0f172a',
       backgroundColor: '#ffffff'
@@ -3625,7 +3626,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const renderOpts = getRenderOptions();
     const sheetIdx = parseInt(printSheetSelect ? printSheetSelect.value : '0', 10) || 0;
-    const showBorders = printShowBordersChk ? printShowBordersChk.checked : true;
+    const showBorders = Boolean(printShowBordersChk && printShowBordersChk.checked);
 
     if (printPreviewSheetTag) {
       const templateName = (presetTemplateSelect ? presetTemplateSelect.value : 'tj-107').toUpperCase();
@@ -3663,7 +3664,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    const showBorders = printShowBordersChk ? printShowBordersChk.checked : true;
+    const showBorders = Boolean(printShowBordersChk && printShowBordersChk.checked);
     const renderOpts = getRenderOptions();
     const sheetCap = renderOpts.cols * renderOpts.rows;
     const templateName = (presetTemplateSelect ? presetTemplateSelect.value : 'sheet').replace(/[^a-zA-Z0-9_-]/g, '_');
@@ -3711,7 +3712,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    const showBorders = printShowBordersChk ? printShowBordersChk.checked : true;
+    const showBorders = Boolean(printShowBordersChk && printShowBordersChk.checked);
     const renderOpts = getRenderOptions();
     const sheetIdx = scope === 'all' ? 'all' : (parseInt(printSheetSelect ? printSheetSelect.value : '0', 10) || 0);
 
@@ -3792,7 +3793,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    const showBorders = printShowBordersChk ? printShowBordersChk.checked : true;
+    const showBorders = Boolean(printShowBordersChk && printShowBordersChk.checked);
     const renderOpts = getRenderOptions();
     const sheetIdx = scope === 'all' ? 'all' : (parseInt(printSheetSelect ? printSheetSelect.value : '0', 10) || 0);
 

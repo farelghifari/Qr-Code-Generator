@@ -143,11 +143,13 @@
       }
     }
 
-    // Line border solid hitam 1px frame label
-    ctx.strokeStyle = '#000000';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([]);
-    ctx.strokeRect(0.5, 0.5, labelW - 1, labelH - 1);
+    // Line border solid hitam 1px frame label (hanya jika opsi showBorder: true diaktifkan)
+    if (barcodeRenderOptions.showBorder === true) {
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([]);
+      ctx.strokeRect(0.5, 0.5, labelW - 1, labelH - 1);
+    }
 
     const defaultFilename = filename || `stiker_${labelWidthMm}x${labelHeightMm}mm_${String(id).replace(/[^a-zA-Z0-9_-]/g, '_')}.png`;
 
@@ -431,11 +433,13 @@
         }
       }
 
-      // Line border solid hitam 1px frame label
-      ctx.strokeStyle = '#000000';
-      ctx.lineWidth = 1;
-      ctx.setLineDash([]);
-      ctx.strokeRect(0.5, 0.5, labelW - 1, labelH - 1);
+      // Line border solid hitam 1px frame label (hanya jika opsi showBorder: true diaktifkan)
+      if (barcodeRenderOptions.showBorder === true) {
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([]);
+        ctx.strokeRect(0.5, 0.5, labelW - 1, labelH - 1);
+      }
 
       bytes = await canvasToUint8Array(stickerCanvas);
       const safeFilename = `stiker_${labelWidthMm}x${labelHeightMm}mm_${String(id).replace(/[^a-zA-Z0-9_-]/g, '_')}.png`;
@@ -453,7 +457,7 @@
   /**
    * Helper: Merender satu lembar (sheet) stiker ke objek Canvas (300 DPI)
    */
-  function renderSheetToCanvas(items, barcodeRenderOptions, sheetIndex = 0, showBorders = true) {
+  function renderSheetToCanvas(items, barcodeRenderOptions, sheetIndex = 0, showBorders = false) {
     const paperWidthMm = barcodeRenderOptions.paperWidthMm || 165;
     const paperHeightMm = barcodeRenderOptions.paperHeightMm || 210;
     const labelWidthMm = barcodeRenderOptions.labelWidthMm || 50;
@@ -530,6 +534,7 @@
           fontSizeTitle: barcodeRenderOptions.fontSizeTitle || 12,
           fontSizeDetails: barcodeRenderOptions.fontSizeDetails || 10,
           fontSizeId: barcodeRenderOptions.fontSizeId || 11,
+          showBorder: Boolean(showBorders),
           lineColor: '#000000',
           backgroundColor: '#ffffff'
         });
@@ -569,7 +574,7 @@
   /**
    * 5. Download Full Sheet Image (PNG) - Mendukung Template Tom & Jerry & Kustom Sendiri
    */
-  async function downloadFullSheetPNG(items, barcodeRenderOptions, sheetIndex = 0, showBorders = true, filename = null) {
+  async function downloadFullSheetPNG(items, barcodeRenderOptions, sheetIndex = 0, showBorders = false, filename = null) {
     if (!items || !items.length) {
       alert('Tidak ada barcode untuk diunduh lembarannya.');
       return;
@@ -593,7 +598,7 @@
   /**
    * 6. Download Full Sheet PDF - Mendukung Satu Lembar atau SEMUA Halaman Sekaligus
    */
-  async function downloadFullSheetPDF(items, barcodeRenderOptions, sheetIndex = 'all', showBorders = true, filename = null) {
+  async function downloadFullSheetPDF(items, barcodeRenderOptions, sheetIndex = 'all', showBorders = false, filename = null) {
     if (!items || !items.length) {
       alert('Tidak ada barcode untuk diekspor ke PDF.');
       return;
@@ -646,7 +651,7 @@
    * 7. Download Full Sheet Word Document (.docx) - Mendukung Satu Lembar atau SEMUA Halaman Sekaligus
    * Gambar label dimasukkan ke dalam dokumen Word dengan ukuran dan tata letak yang proporsional sehingga siap diprint.
    */
-  async function downloadFullSheetDocx(items, barcodeRenderOptions, sheetIndex = 'all', showBorders = true, filename = null) {
+  async function downloadFullSheetDocx(items, barcodeRenderOptions, sheetIndex = 'all', showBorders = false, filename = null) {
     if (!items || !items.length) {
       alert('Tidak ada barcode untuk diekspor ke Word (.docx).');
       return;

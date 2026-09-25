@@ -614,8 +614,8 @@
       }
     }
 
-    // Render line border (garis solid sederhana 1px solid black) untuk frame label bersih
-    if (options.showBorder !== false) {
+    // Render line border (hanya jika opsi showBorder: true diaktifkan)
+    if (options.showBorder === true) {
       ctx.strokeStyle = '#000000';
       ctx.lineWidth = 1;
       ctx.strokeRect(0.5, 0.5, width - 1, height - 1);
@@ -846,7 +846,7 @@
       }
     }
 
-    const borderSvg = options.showBorder !== false ? `\n        <rect x="0.5" y="0.5" width="${width - 1}" height="${height - 1}" fill="none" stroke="#000000" stroke-width="1"/>` : '';
+    const borderSvg = options.showBorder === true ? `\n        <rect x="0.5" y="0.5" width="${width - 1}" height="${height - 1}" fill="none" stroke="#000000" stroke-width="1"/>` : '';
 
     return `
       <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
@@ -930,7 +930,7 @@
       ctx.fillText(String(text).trim(), width / 2, curY, availW);
     }
 
-    if (options.showBorder !== false) {
+    if (options.showBorder === true) {
       ctx.strokeStyle = '#000000';
       ctx.lineWidth = 1;
       ctx.strokeRect(0.5, 0.5, width - 1, height - 1);
@@ -1139,7 +1139,7 @@
       }
     }
 
-    if (options.showBorder !== false) {
+    if (options.showBorder === true) {
       ctx.strokeStyle = '#000000';
       ctx.lineWidth = 1;
       ctx.strokeRect(0.5, 0.5, width - 1, height - 1);
@@ -1255,7 +1255,7 @@
           ctx.imageSmoothingEnabled = false;
           ctx.drawImage(tempCanvas, barcodeX, labelHeight);
         }
-        if (options.showBorder !== false) {
+        if (options.showBorder === true) {
           const mainCtx = canvas.getContext('2d');
           mainCtx.strokeStyle = '#000000';
           mainCtx.lineWidth = 1;
@@ -1333,7 +1333,7 @@
       ctx.fillText(resolvedDisplay, totalWidth / 2, currentY + height + 4);
     }
 
-    if (options.showBorder !== false) {
+    if (options.showBorder === true) {
       ctx.strokeStyle = '#000000';
       ctx.lineWidth = 1;
       ctx.strokeRect(0.5, 0.5, totalWidth - 1, totalHeight - 1);
@@ -1432,7 +1432,7 @@
     }
 
     let borderSvg = '';
-    if (options.showBorder !== false) {
+    if (options.showBorder === true) {
       borderSvg = `<rect x="0.5" y="0.5" width="${width - 1}" height="${height - 1}" fill="none" stroke="#000000" stroke-width="1" />`;
     }
 
@@ -1550,7 +1550,7 @@
     }
 
     let borderSvg = '';
-    if (options.showBorder !== false) {
+    if (options.showBorder === true) {
       borderSvg = `<rect x="0.5" y="0.5" width="${width - 1}" height="${height - 1}" fill="none" stroke="#000000" stroke-width="1" />`;
     }
 
