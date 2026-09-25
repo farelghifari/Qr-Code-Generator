@@ -81,8 +81,10 @@
     if (engine) {
       const itemFormat = itemObj.format || barcodeRenderOptions.format || 'CODE128';
       const isQR = itemFormat === 'QR' || itemFormat === 'QRCODE';
+      const isNone = itemFormat === 'NONE' || itemFormat === 'NO_CODE' || itemFormat === 'NO-CODE' || itemFormat === 'TEXT';
+      const isLabelLayout = isQR || isNone || Boolean(barcodeRenderOptions.layoutPosition);
 
-      if (isQR) {
+      if (isLabelLayout) {
         engine.renderToCanvas(stickerCanvas, id, {
           ...barcodeRenderOptions,
           ...itemObj,
@@ -396,8 +398,8 @@
           laci: itemObj.laci || barcodeRenderOptions.laci || '',
           kotak: itemObj.kotak || barcodeRenderOptions.kotak || '',
           extraRows: itemObj.extraRows || barcodeRenderOptions.extraRows || [],
-          targetWidth: isQR ? labelW : 0,
-          targetHeight: isQR ? labelH : 0,
+          targetWidth: (isQR || itemFormat === 'NONE' || Boolean(barcodeRenderOptions.layoutPosition)) ? labelW : 0,
+          targetHeight: (isQR || itemFormat === 'NONE' || Boolean(barcodeRenderOptions.layoutPosition)) ? labelH : 0,
           barWidth: barcodeRenderOptions.barWidth || 2,
           height: barcodeRenderOptions.height || 60,
           margin: barcodeRenderOptions.margin || 8,
@@ -409,7 +411,7 @@
           backgroundColor: '#ffffff'
         });
 
-        if (isQR && tempCanvas.width === labelW && tempCanvas.height === labelH) {
+        if (tempCanvas.width === labelW && tempCanvas.height === labelH) {
           ctx.imageSmoothingEnabled = false;
           ctx.drawImage(tempCanvas, 0, 0);
         } else {
@@ -522,8 +524,8 @@
           laci: itemObj.laci || barcodeRenderOptions.laci || '',
           kotak: itemObj.kotak || barcodeRenderOptions.kotak || '',
           extraRows: itemObj.extraRows || barcodeRenderOptions.extraRows || [],
-          targetWidth: isQR ? labelW : 0,
-          targetHeight: isQR ? labelH : 0,
+          targetWidth: (isQR || itemFormat === 'NONE' || Boolean(barcodeRenderOptions.layoutPosition)) ? labelW : 0,
+          targetHeight: (isQR || itemFormat === 'NONE' || Boolean(barcodeRenderOptions.layoutPosition)) ? labelH : 0,
           barWidth: barcodeRenderOptions.barWidth || 2,
           height: barcodeRenderOptions.height || 60,
           margin: barcodeRenderOptions.margin || 8,
@@ -535,7 +537,7 @@
           backgroundColor: '#ffffff'
         });
 
-        if (isQR && tempCanvas.width === labelW && tempCanvas.height === labelH) {
+        if (tempCanvas.width === labelW && tempCanvas.height === labelH) {
           ctx.imageSmoothingEnabled = false;
           ctx.drawImage(tempCanvas, x, y);
         } else {

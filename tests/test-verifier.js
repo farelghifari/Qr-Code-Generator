@@ -720,8 +720,48 @@ assert(svgSample.includes('stroke="#000000"'), 'SVG label harus menyertakan line
 assert(svgSample.includes('stroke-width="1"'), 'SVG label harus menyertakan border width 1px');
 console.log('✅ Modul Ekspor Word (.docx) & Line Border LULUS.');
 
-console.log('\n🎉 SEMUA 33 PENGUJIAN VERIFIKASI BERHASIL 100%!');
+// Test 34: Barcode 1D Center-Compact Layout Rendering (Kecil di Tengah)
+console.log('34. Menguji Barcode 1D Kecil di Tengah (Center-Compact Layout)...');
+const svg1DCenter = BarcodeEngine.toSVGString('ORD00000000152900001', {
+  format: 'CODE128',
+  layoutPosition: 'center-compact',
+  labelWidthMm: 50,
+  labelHeightMm: 18,
+  brand: 'Hartadinata',
+  gramasi: '1 gr',
+  vault: 'Wisma Mandiri',
+  lemari: 'LECTO1',
+  laci: 'LACI1',
+  kotak: 'K56',
+  showBorder: true
+});
+assert(svg1DCenter.includes('<svg'), 'SVG Barcode 1D center-compact harus valid XML SVG');
+assert(svg1DCenter.includes('Hartadinata - 1 gr'), 'Harus menampilkan detail produk');
+assert(svg1DCenter.includes('ORD00000000152900001'), 'Harus menampilkan nomor ID di bawah barcode');
+assert(svg1DCenter.includes('stroke="#000000"'), 'Harus memiliki border solid');
+console.log('✅ Barcode 1D Kecil di Tengah (Center-Compact) LULUS.');
 
+// Test 35: Tanpa Barcode (Teks Saja) Label Rendering
+console.log('35. Menguji Format Tanpa Barcode (Teks Saja)...');
+const svgNoBarcode = BarcodeEngine.toSVGString('ORD00000000152900001', {
+  format: 'NONE',
+  labelWidthMm: 50,
+  labelHeightMm: 18,
+  brand: 'Hartadinata',
+  gramasi: '1 gr',
+  vault: 'Wisma Mandiri',
+  lemari: 'LECTO1',
+  laci: 'LACI1',
+  kotak: 'K56',
+  showBorder: true
+});
+assert(svgNoBarcode.includes('<svg'), 'SVG Tanpa Barcode harus valid XML SVG');
+assert(svgNoBarcode.includes('Hartadinata - 1 gr'), 'Harus menampilkan Brand & Gramasi');
+assert(svgNoBarcode.includes('Wisma Mandiri - LECTO1 - LACI1 - K56'), 'Harus menampilkan Lokasi Lengkap');
+assert(svgNoBarcode.includes('ORD00000000152900001'), 'Harus menampilkan nomor ID');
+assert(svgNoBarcode.includes('stroke="#000000"'), 'Harus memiliki border solid');
+// Pastikan tidak ada baris/modul barcode garis di format NONE
+assert(!svgNoBarcode.includes('height="75"'), 'Format NONE tidak boleh memuat elemen barcode garis tinggi');
+console.log('✅ Format Tanpa Barcode (Teks Saja) LULUS.');
 
-
-
+console.log('\n🎉 SEMUA 35 PENGUJIAN VERIFIKASI BERHASIL 100%!');

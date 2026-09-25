@@ -144,6 +144,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // DOM Elements - Code Type Switcher
   const btnTypeBarcode = document.getElementById('btn-type-barcode');
   const btnTypeQr = document.getElementById('btn-type-qr');
+  const btnTypeNone = document.getElementById('btn-type-none');
   const activeTypeBadge = document.getElementById('active-type-badge');
   const barcode1dSymbologyGroup = document.getElementById('barcode-1d-symbology-group');
 
@@ -1734,12 +1735,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // --- CODE TYPE SWITCHER (1D BARCODE vs QR CODE) ---
+  // --- CODE TYPE SWITCHER (1D BARCODE vs QR CODE vs TANPA BARCODE) ---
   function setCodeType(type) {
     currentCodeType = type;
     if (type === 'QR') {
       if (btnTypeQr) btnTypeQr.classList.add('active');
       if (btnTypeBarcode) btnTypeBarcode.classList.remove('active');
+      if (btnTypeNone) btnTypeNone.classList.remove('active');
       if (activeTypeBadge) {
         activeTypeBadge.textContent = 'QR Code Aktif';
         activeTypeBadge.className = 'text-[10px] text-indigo-600 bg-indigo-50 px-1.5 py-0.2 rounded font-semibold';
@@ -1747,9 +1749,21 @@ document.addEventListener('DOMContentLoaded', () => {
       if (barcode1dSymbologyGroup) barcode1dSymbologyGroup.classList.add('hidden');
       const dimGroup = document.getElementById('dimensions-control-group');
       if (dimGroup) dimGroup.classList.add('hidden');
+    } else if (type === 'NONE') {
+      if (btnTypeNone) btnTypeNone.classList.add('active');
+      if (btnTypeQr) btnTypeQr.classList.remove('active');
+      if (btnTypeBarcode) btnTypeBarcode.classList.remove('active');
+      if (activeTypeBadge) {
+        activeTypeBadge.textContent = 'Tanpa Barcode Aktif (Teks Saja)';
+        activeTypeBadge.className = 'text-[10px] text-emerald-800 bg-emerald-100 px-1.5 py-0.2 rounded font-semibold';
+      }
+      if (barcode1dSymbologyGroup) barcode1dSymbologyGroup.classList.add('hidden');
+      const dimGroup = document.getElementById('dimensions-control-group');
+      if (dimGroup) dimGroup.classList.add('hidden');
     } else {
       if (btnTypeBarcode) btnTypeBarcode.classList.add('active');
       if (btnTypeQr) btnTypeQr.classList.remove('active');
+      if (btnTypeNone) btnTypeNone.classList.remove('active');
       if (activeTypeBadge) {
         activeTypeBadge.textContent = 'Barcode 1D Aktif';
         activeTypeBadge.className = 'text-[10px] text-amber-800 bg-amber-100 px-1.5 py-0.2 rounded font-semibold';
@@ -1763,6 +1777,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (btnTypeBarcode) btnTypeBarcode.addEventListener('click', () => setCodeType('CODE128'));
   if (btnTypeQr) btnTypeQr.addEventListener('click', () => setCodeType('QR'));
+  if (btnTypeNone) btnTypeNone.addEventListener('click', () => setCodeType('NONE'));
 
   // --- LAYOUT & TYPOGRAPHY LISTENERS ---
   if (layoutPositionSelect) {
@@ -1846,7 +1861,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const fsDetails = parseInt(fontSizeDetailsSlider ? fontSizeDetailsSlider.value : '8', 10) || 8;
     const fsId = parseInt(fontSizeIdSlider ? fontSizeIdSlider.value : '8', 10) || 8;
 
-    const chosenFormat = isQR ? 'QR' : (barcodeFormat ? barcodeFormat.value : 'CODE128');
+    const isNone = currentCodeType === 'NONE';
+    const chosenFormat = isNone ? 'NONE' : (isQR ? 'QR' : (barcodeFormat ? barcodeFormat.value : 'CODE128'));
 
     return {
       format: chosenFormat,
@@ -2005,11 +2021,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     try {
-      if (renderOpts.codeType === 'QR' || renderOpts.format === 'QR') {
-        BarcodeEngine.renderQRCodeToCanvas(liveDesignPreviewCanvas, sampleId, sampleOptions);
-      } else {
-        BarcodeEngine.renderToCanvas(liveDesignPreviewCanvas, sampleId, sampleOptions);
-      }
+      BarcodeEngine.renderToCanvas(liveDesignPreviewCanvas, sampleId, sampleOptions);
     } catch (err) {
       console.warn('Gagal merender live design preview:', err);
     }
@@ -2230,7 +2242,7 @@ document.addEventListener('DOMContentLoaded', () => {
       IdGenerator.registry.addBatch(ids);
 
       const defaultLabel = topLabelInput.value.trim();
-      const chosenFormat = currentCodeType === 'QR' ? 'QR' : (barcodeFormat ? barcodeFormat.value : 'CODE128');
+      const chosenFormat = currentCodeType === 'NONE' ? 'NONE' : (currentCodeType === 'QR' ? 'QR' : (barcodeFormat ? barcodeFormat.value : 'CODE128'));
       const nowFormatted = new Date().toLocaleString('id-ID', {
         day: '2-digit', month: '2-digit', year: 'numeric',
         hour: '2-digit', minute: '2-digit'

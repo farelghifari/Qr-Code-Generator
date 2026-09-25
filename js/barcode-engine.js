@@ -857,12 +857,296 @@
   }
 
   /**
+   * Render Label Tanpa Barcode (Hanya Teks Informasi & Nomor ID)
+   */
+  function renderTextOnlyToCanvas(canvas, text, options = {}) {
+    if (!canvas) return;
+    const {
+      targetWidth = 0,
+      targetHeight = 0,
+      margin = 8,
+      displayValue = true,
+      idPosition = 'under-code',
+      fontSizeTitle = 12,
+      fontSizeDetails = 10,
+      fontSizeId = 11,
+      fontFamily = 'sans-serif',
+      lineColor = '#0f172a',
+      backgroundColor = '#ffffff'
+    } = options;
+
+    let width = targetWidth;
+    let height = targetHeight;
+    if (!width || !height) {
+      width = 480;
+      height = 175;
+    }
+
+    const baseHeight = Math.round((options.labelHeightMm || 18) * 6);
+    const resScale = height > 0 ? (height / baseHeight) : 1.0;
+    const effMargin = Math.max(2, Math.round(margin * resScale));
+    const availW = width - (effMargin * 2);
+    const availH = height - (effMargin * 2);
+
+    canvas.width = width;
+    canvas.height = height;
+
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+    ctx.fillStyle = backgroundColor;
+    ctx.fillRect(0, 0, width, height);
+
+    const detailLines = extractDetailLines(options);
+    const showId = displayValue && idPosition !== 'none' && Boolean(text);
+
+    const lineGap = Math.max(1, Math.round(2.5 * resScale));
+    const totalLinesCount = detailLines.length + (showId ? 1 : 0);
+
+    let uniformFontSize = Math.round(fontSizeDetails * resScale);
+    if (totalLinesCount > 0) {
+      const estH = (totalLinesCount * uniformFontSize) + ((totalLinesCount - 1) * lineGap);
+      if (estH > availH) {
+        uniformFontSize = Math.max(Math.round(6.5 * resScale), Math.floor((availH - ((totalLinesCount - 1) * lineGap)) / totalLinesCount));
+      }
+    }
+
+    const totalTextH = (totalLinesCount * uniformFontSize) + (Math.max(0, totalLinesCount - 1) * lineGap);
+    let curY = effMargin + Math.max(0, Math.round((availH - totalTextH) / 2));
+
+    ctx.fillStyle = lineColor;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+
+    detailLines.forEach((line, idx) => {
+      const isHeader = idx === 0;
+      ctx.font = isHeader ? `bold ${Math.round(uniformFontSize * 1.15)}px ${fontFamily}` : `600 ${uniformFontSize}px ${fontFamily}`;
+      ctx.fillText(line, width / 2, curY, availW);
+      curY += uniformFontSize + lineGap;
+    });
+
+    if (showId) {
+      ctx.font = `bold ${uniformFontSize}px monospace`;
+      ctx.fillText(String(text).trim(), width / 2, curY, availW);
+    }
+
+    if (options.showBorder !== false) {
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(0.5, 0.5, width - 1, height - 1);
+    }
+
+    return canvas;
+  }
+
+  /**
+   * Render Barcode 1D (Code 128, Code 39, EAN-13) dengan dukungan tata letak:
+   * - center-compact: Barcode 1D kecil di tengah, teks detail di atas / sekelilingnya
+   * - side-left: Barcode 1D di kiri, teks di kanan
+   * - side-right: Barcode 1D di kanan, teks di kiri
+   * - stacked: Detail di atas, barcode 1D di tengah, ID di bawah
+   */
+  function renderBarcodeToCanvas(canvas, text, options = {}) {
+    if (!canvas) return;
+    const {
+      format = 'CODE128',
+      layoutPosition = 'center-compact',
+      targetWidth = 0,
+      targetHeight = 0,
+      margin = 6,
+      displayValue = true,
+      idPosition = 'under-code',
+      barcodeScale = 1.0,
+      fontSizeTitle = 12,
+      fontSizeDetails = 10,
+      fontSizeId = 11,
+      fontFamily = 'sans-serif',
+      lineColor = '#0f172a',
+      backgroundColor = '#ffffff'
+    } = options;
+
+    let width = targetWidth;
+    let height = targetHeight;
+    if (!width || !height) {
+      width = 480;
+      height = 175;
+    }
+
+    const baseHeight = Math.round((options.labelHeightMm || 18) * 6);
+    const resScale = height > 0 ? (height / baseHeight) : 1.0;
+    const effMargin = Math.max(2, Math.round(margin * resScale));
+    const availW = width - (effMargin * 2);
+    const availH = height - (effMargin * 2);
+
+    canvas.width = width;
+    canvas.height = height;
+
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+    ctx.fillStyle = backgroundColor;
+    ctx.fillRect(0, 0, width, height);
+
+    const { binary, displayValue: resolvedDisplay } = getBarcodeBinary(text, format);
+    const detailLines = extractDetailLines(options);
+    const showIdUnder = displayValue && idPosition === 'under-code';
+    const showIdSide = displayValue && idPosition === 'side-text';
+    const scaleFactor = Math.max(0.3, Math.min(1.6, parseFloat(barcodeScale) || 1.0));
+    const lineGap = Math.max(1, Math.round(2 * resScale));
+    const idGap = Math.max(1, Math.round(2 * resScale));
+
+    if (layoutPosition === 'center-compact' || layoutPosition === 'stacked') {
+      const isCenterCompact = layoutPosition === 'center-compact';
+      const numLines = detailLines.length;
+      let uniformFontSize = Math.round(fontSizeDetails * resScale);
+      let totalDetailH = 0;
+      if (numLines > 0) {
+        const estH = (numLines * uniformFontSize) + ((numLines - 1) * lineGap);
+        if (estH > availH * 0.45) {
+          uniformFontSize = Math.max(Math.round(6 * resScale), Math.floor((availH * 0.45 - ((numLines - 1) * lineGap)) / numLines));
+        }
+        totalDetailH = (numLines * uniformFontSize) + ((numLines - 1) * lineGap);
+      }
+
+      let fitIdSize = Math.max(Math.round(6 * resScale), Math.round(fontSizeId * resScale * 0.85));
+      const totalIdH = showIdUnder ? (fitIdSize + idGap) : 0;
+      const gapBetween = numLines > 0 ? Math.max(2, Math.round(2.5 * resScale)) : 0;
+
+      const maxBarH = Math.max(8, availH - totalDetailH - gapBetween - totalIdH);
+      const barH = isCenterCompact
+        ? Math.max(8, Math.min(Math.round(availH * 0.28 * scaleFactor), maxBarH))
+        : Math.max(10, Math.min(Math.round(availH * 0.38 * scaleFactor), maxBarH));
+
+      const maxAllowedBarW = isCenterCompact
+        ? Math.min(availW * 0.70, Math.max(80, availW * 0.55 * scaleFactor))
+        : (availW * 0.88);
+      const modW = Math.max(0.5, Math.min(2.5, maxAllowedBarW / (binary.length || 1)));
+      const totalBarW = Math.round(binary.length * modW);
+      const barX = effMargin + Math.round((availW - totalBarW) / 2);
+
+      const totalGroupH = totalDetailH + (numLines > 0 ? gapBetween : 0) + barH + (showIdUnder ? totalIdH : 0);
+      let curY = effMargin + Math.max(0, Math.round((availH - totalGroupH) / 2));
+
+      // 1. Gambar teks detail di atas barcode (centered)
+      if (numLines > 0) {
+        ctx.fillStyle = lineColor;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        detailLines.forEach((line, idx) => {
+          const isHeader = idx === 0;
+          ctx.font = isHeader ? `bold ${uniformFontSize}px ${fontFamily}` : `600 ${uniformFontSize}px ${fontFamily}`;
+          ctx.fillText(line, width / 2, curY, availW);
+          curY += uniformFontSize + lineGap;
+        });
+        curY += gapBetween;
+      }
+
+      // 2. Gambar Barcode 1D di tengah
+      ctx.fillStyle = lineColor;
+      let startX = barX;
+      for (let i = 0; i < binary.length; i++) {
+        if (binary[i] === '1') {
+          ctx.fillRect(Math.round(startX), Math.round(curY), Math.max(1, Math.round(modW)), barH);
+        }
+        startX += modW;
+      }
+      curY += barH;
+
+      // 3. Gambar nomor ID tepat di bawah barcode
+      if (showIdUnder) {
+        curY += idGap;
+        ctx.fillStyle = lineColor;
+        ctx.font = `bold ${fitIdSize}px monospace`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillText(resolvedDisplay, width / 2, curY, availW);
+      }
+    } else {
+      // side-left atau side-right
+      const isSideLeft = layoutPosition !== 'side-right';
+      const sideExtraPad = Math.max(10, Math.round(14 * resScale));
+      const colGap = Math.max(4, Math.round(5 * resScale));
+
+      const barZoneW = Math.round(availW * 0.42);
+      const textZoneW = availW - barZoneW - colGap;
+
+      const modW = Math.max(0.5, Math.min(2.0, barZoneW / (binary.length || 1)));
+      const totalBarW = Math.round(binary.length * modW);
+      const barX = isSideLeft ? (effMargin + sideExtraPad) : (width - effMargin - sideExtraPad - totalBarW);
+
+      let fitIdSize = Math.max(Math.round(5.5 * resScale), Math.round(fontSizeId * resScale * 0.8));
+      const totalIdH = showIdUnder ? (fitIdSize + idGap) : 0;
+      const barH = Math.max(10, Math.round((availH - totalIdH) * 0.65 * scaleFactor));
+      const totalGroupH = barH + (showIdUnder ? totalIdH : 0);
+      const barY = effMargin + Math.max(0, Math.round((availH - totalGroupH) / 2));
+
+      ctx.fillStyle = lineColor;
+      let startX = barX;
+      for (let i = 0; i < binary.length; i++) {
+        if (binary[i] === '1') {
+          ctx.fillRect(Math.round(startX), Math.round(barY), Math.max(1, Math.round(modW)), barH);
+        }
+        startX += modW;
+      }
+
+      if (showIdUnder) {
+        ctx.fillStyle = lineColor;
+        ctx.font = `bold ${fitIdSize}px monospace`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillText(resolvedDisplay, barX + totalBarW / 2, barY + barH + idGap, totalBarW);
+      }
+
+      const numLines = detailLines.length + (showIdSide ? 1 : 0);
+      if (numLines > 0) {
+        let uniformFontSize = Math.round(fontSizeDetails * resScale);
+        const estTotalH = (numLines * uniformFontSize) + ((numLines - 1) * lineGap);
+        if (estTotalH > availH) {
+          uniformFontSize = Math.max(Math.round(6 * resScale), Math.floor((availH - ((numLines - 1) * lineGap)) / numLines));
+        }
+
+        const totalTextH = (numLines * uniformFontSize) + ((numLines - 1) * lineGap);
+        const textY = effMargin + Math.max(0, Math.round((availH - totalTextH) / 2));
+        const textX = isSideLeft ? (barX + totalBarW + colGap) : effMargin;
+        const anchorX = isSideLeft ? textX : (textX + textZoneW);
+
+        ctx.fillStyle = lineColor;
+        ctx.textAlign = isSideLeft ? 'left' : 'right';
+        ctx.textBaseline = 'top';
+
+        detailLines.forEach((line, idx) => {
+          const isHeader = idx === 0;
+          ctx.font = isHeader ? `bold ${uniformFontSize}px ${fontFamily}` : `600 ${uniformFontSize}px ${fontFamily}`;
+          ctx.fillText(line, anchorX, textY + idx * (uniformFontSize + lineGap), textZoneW);
+        });
+
+        if (showIdSide) {
+          ctx.font = `bold ${uniformFontSize}px monospace`;
+          ctx.fillText(resolvedDisplay, anchorX, textY + detailLines.length * (uniformFontSize + lineGap), textZoneW);
+        }
+      }
+    }
+
+    if (options.showBorder !== false) {
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(0.5, 0.5, width - 1, height - 1);
+    }
+
+    return canvas;
+  }
+
+  /**
    * Render Barcode / QR Code ke Canvas Element
    */
   function renderToCanvas(canvas, text, options = {}) {
     const fmt = (options.format || 'CODE128').toUpperCase();
     if (fmt === 'QR' || fmt === 'QRCODE') {
       return renderQRCodeToCanvas(canvas, text, options);
+    }
+    if (fmt === 'NONE' || fmt === 'NO_CODE' || fmt === 'NO-CODE' || fmt === 'TEXT') {
+      return renderTextOnlyToCanvas(canvas, text, options);
+    }
+    if ((options.targetWidth && options.targetHeight) || options.layoutPosition) {
+      return renderBarcodeToCanvas(canvas, text, options);
     }
 
     const {
@@ -1080,12 +1364,188 @@
   }
 
   /**
+   * Render Label Tanpa Barcode ke SVG String
+   */
+  function renderTextOnlyToSVG(text, options = {}) {
+    const {
+      targetWidth = 0,
+      targetHeight = 0,
+      margin = 8,
+      displayValue = true,
+      idPosition = 'under-code',
+      fontSizeDetails = 10,
+      fontFamily = 'sans-serif',
+      lineColor = '#0f172a',
+      backgroundColor = '#ffffff'
+    } = options;
+
+    let width = targetWidth || 480;
+    let height = targetHeight || 175;
+    const baseHeight = Math.round((options.labelHeightMm || 18) * 6);
+    const resScale = height > 0 ? (height / baseHeight) : 1.0;
+    const effMargin = Math.max(2, Math.round(margin * resScale));
+    const availW = width - (effMargin * 2);
+    const availH = height - (effMargin * 2);
+
+    const detailLines = extractDetailLines(options);
+    const showId = displayValue && idPosition !== 'none' && Boolean(text);
+
+    const lineGap = Math.max(1, Math.round(2.5 * resScale));
+    const totalLinesCount = detailLines.length + (showId ? 1 : 0);
+
+    let uniformFontSize = Math.round(fontSizeDetails * resScale);
+    if (totalLinesCount > 0) {
+      const estH = (totalLinesCount * uniformFontSize) + ((totalLinesCount - 1) * lineGap);
+      if (estH > availH) {
+        uniformFontSize = Math.max(Math.round(6.5 * resScale), Math.floor((availH - ((totalLinesCount - 1) * lineGap)) / totalLinesCount));
+      }
+    }
+
+    const totalTextH = (totalLinesCount * uniformFontSize) + (Math.max(0, totalLinesCount - 1) * lineGap);
+    let curY = effMargin + Math.max(0, Math.round((availH - totalTextH) / 2));
+
+    let textSvg = '';
+    detailLines.forEach((line, idx) => {
+      const isHeader = idx === 0;
+      const weight = isHeader ? 'bold' : '600';
+      const fSize = isHeader ? Math.round(uniformFontSize * 1.15) : uniformFontSize;
+      textSvg += `<text x="${width / 2}" y="${curY + fSize}" text-anchor="middle" font-family="${fontFamily}" font-weight="${weight}" font-size="${fSize}" fill="${lineColor}">${escapeXml(line)}</text>`;
+      curY += uniformFontSize + lineGap;
+    });
+
+    if (showId) {
+      textSvg += `<text x="${width / 2}" y="${curY + uniformFontSize}" text-anchor="middle" font-family="monospace" font-weight="bold" font-size="${uniformFontSize}" fill="${lineColor}">${escapeXml(String(text).trim())}</text>`;
+    }
+
+    let borderSvg = '';
+    if (options.showBorder !== false) {
+      borderSvg = `<rect x="0.5" y="0.5" width="${width - 1}" height="${height - 1}" fill="none" stroke="#000000" stroke-width="1" />`;
+    }
+
+    return `
+      <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+        <rect width="100%" height="100%" fill="${backgroundColor}" />
+        ${borderSvg}
+        ${textSvg}
+      </svg>
+    `.trim();
+  }
+
+  /**
+   * Render Barcode 1D Center-Compact ke SVG String
+   */
+  function renderBarcodeToSVG(text, options = {}) {
+    const {
+      format = 'CODE128',
+      layoutPosition = 'center-compact',
+      targetWidth = 0,
+      targetHeight = 0,
+      margin = 6,
+      displayValue = true,
+      idPosition = 'under-code',
+      barcodeScale = 1.0,
+      fontSizeDetails = 10,
+      fontSizeId = 11,
+      fontFamily = 'sans-serif',
+      lineColor = '#0f172a',
+      backgroundColor = '#ffffff'
+    } = options;
+
+    let width = targetWidth || 480;
+    let height = targetHeight || 175;
+    const baseHeight = Math.round((options.labelHeightMm || 18) * 6);
+    const resScale = height > 0 ? (height / baseHeight) : 1.0;
+    const effMargin = Math.max(2, Math.round(margin * resScale));
+    const availW = width - (effMargin * 2);
+    const availH = height - (effMargin * 2);
+
+    const { binary, displayValue: resolvedDisplay } = getBarcodeBinary(text, format);
+    const detailLines = extractDetailLines(options);
+    const showIdUnder = displayValue && idPosition === 'under-code';
+    const scaleFactor = Math.max(0.3, Math.min(1.6, parseFloat(barcodeScale) || 1.0));
+    const lineGap = Math.max(1, Math.round(2 * resScale));
+    const idGap = Math.max(1, Math.round(2 * resScale));
+
+    const numLines = detailLines.length;
+    let uniformFontSize = Math.round(fontSizeDetails * resScale);
+    let totalDetailH = 0;
+    if (numLines > 0) {
+      const estH = (numLines * uniformFontSize) + ((numLines - 1) * lineGap);
+      if (estH > availH * 0.45) {
+        uniformFontSize = Math.max(Math.round(6 * resScale), Math.floor((availH * 0.45 - ((numLines - 1) * lineGap)) / numLines));
+      }
+      totalDetailH = (numLines * uniformFontSize) + ((numLines - 1) * lineGap);
+    }
+
+    let fitIdSize = Math.max(Math.round(6 * resScale), Math.round(fontSizeId * resScale * 0.85));
+    const totalIdH = showIdUnder ? (fitIdSize + idGap) : 0;
+    const gapBetween = numLines > 0 ? Math.max(2, Math.round(2.5 * resScale)) : 0;
+
+    const maxBarH = Math.max(8, availH - totalDetailH - gapBetween - totalIdH);
+    const barH = Math.max(8, Math.min(Math.round(availH * 0.28 * scaleFactor), maxBarH));
+
+    const maxAllowedBarW = Math.min(availW * 0.70, Math.max(80, availW * 0.55 * scaleFactor));
+    const modW = Math.max(0.5, Math.min(2.5, maxAllowedBarW / (binary.length || 1)));
+    const totalBarW = Math.round(binary.length * modW);
+    const barX = effMargin + Math.round((availW - totalBarW) / 2);
+
+    const totalGroupH = totalDetailH + (numLines > 0 ? gapBetween : 0) + barH + (showIdUnder ? totalIdH : 0);
+    let curY = effMargin + Math.max(0, Math.round((availH - totalGroupH) / 2));
+
+    let textSvg = '';
+    if (numLines > 0) {
+      detailLines.forEach((line, idx) => {
+        const isHeader = idx === 0;
+        const weight = isHeader ? 'bold' : '600';
+        textSvg += `<text x="${width / 2}" y="${curY + uniformFontSize}" text-anchor="middle" font-family="${fontFamily}" font-weight="${weight}" font-size="${uniformFontSize}" fill="${lineColor}">${escapeXml(line)}</text>`;
+        curY += uniformFontSize + lineGap;
+      });
+      curY += gapBetween;
+    }
+
+    let rects = '';
+    let startX = barX;
+    for (let i = 0; i < binary.length; i++) {
+      if (binary[i] === '1') {
+        rects += `<rect x="${Math.round(startX)}" y="${Math.round(curY)}" width="${Math.max(1, Math.round(modW))}" height="${barH}" fill="${lineColor}" />`;
+      }
+      startX += modW;
+    }
+    curY += barH;
+
+    if (showIdUnder) {
+      curY += idGap;
+      textSvg += `<text x="${width / 2}" y="${curY + fitIdSize}" text-anchor="middle" font-family="monospace" font-weight="bold" font-size="${fitIdSize}" fill="${lineColor}">${escapeXml(resolvedDisplay)}</text>`;
+    }
+
+    let borderSvg = '';
+    if (options.showBorder !== false) {
+      borderSvg = `<rect x="0.5" y="0.5" width="${width - 1}" height="${height - 1}" fill="none" stroke="#000000" stroke-width="1" />`;
+    }
+
+    return `
+      <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+        <rect width="100%" height="100%" fill="${backgroundColor}" />
+        ${borderSvg}
+        ${rects}
+        ${textSvg}
+      </svg>
+    `.trim();
+  }
+
+  /**
    * Menghasilkan SVG String
    */
   function toSVGString(text, options = {}) {
     const fmt = (options.format || 'CODE128').toUpperCase();
     if (fmt === 'QR' || fmt === 'QRCODE') {
       return renderQRCodeToSVG(text, options);
+    }
+    if (fmt === 'NONE' || fmt === 'NO_CODE' || fmt === 'NO-CODE' || fmt === 'TEXT') {
+      return renderTextOnlyToSVG(text, options);
+    }
+    if (options.layoutPosition === 'center-compact') {
+      return renderBarcodeToSVG(text, options);
     }
 
     const {
@@ -1167,6 +1627,10 @@
     renderToCanvas,
     renderQRCodeToCanvas,
     renderQRCodeToSVG,
+    renderTextOnlyToCanvas,
+    renderBarcodeToCanvas,
+    renderTextOnlyToSVG,
+    renderBarcodeToSVG,
     sliceTextChunks,
     extractDetailLines,
     toDataURL,
