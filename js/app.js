@@ -295,6 +295,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const barHeightSlider = document.getElementById('bar-height-slider');
   const barHeightVal = document.getElementById('bar-height-val');
   const showTextCheckbox = document.getElementById('show-text-checkbox');
+  const onlyIdCheckbox = document.getElementById('only-id-checkbox');
   const checkHistoryCheckbox = document.getElementById('check-history-checkbox');
 
   // Action Buttons
@@ -1882,6 +1883,7 @@ document.addEventListener('DOMContentLoaded', () => {
       fontSizeTitle: fsTitle,
       fontSizeDetails: fsDetails,
       fontSizeId: fsId,
+      onlyId: (onlyIdCheckbox ? onlyIdCheckbox.checked : false) || layoutPos === 'center-id-only',
       displayValue: showTextCheckbox ? showTextCheckbox.checked : true,
       barcodeScale: (parseFloat(barcodeSizeSlider ? barcodeSizeSlider.value : '100') || 100) / 100,
       idPosition: idPositionSelect ? idPositionSelect.value : 'under-code',
@@ -2020,6 +2022,12 @@ document.addEventListener('DOMContentLoaded', () => {
       margin: renderOpts.margin || 8
     };
 
+    if (renderOpts.onlyId) {
+      sampleOptions.onlyId = true;
+      sampleOptions.labelLines = null;
+      sampleOptions.topLabel = '';
+    }
+
     try {
       BarcodeEngine.renderToCanvas(liveDesignPreviewCanvas, sampleId, sampleOptions);
     } catch (err) {
@@ -2036,6 +2044,18 @@ document.addEventListener('DOMContentLoaded', () => {
   if (barcodeSizeSlider) {
     barcodeSizeSlider.addEventListener('input', (e) => {
       if (barcodeSizeVal) barcodeSizeVal.textContent = `${e.target.value}%`;
+      updateLiveDesignPreview();
+    });
+  }
+
+  if (onlyIdCheckbox) {
+    onlyIdCheckbox.addEventListener('change', () => {
+      updateLiveDesignPreview();
+    });
+  }
+
+  if (showTextCheckbox) {
+    showTextCheckbox.addEventListener('change', () => {
       updateLiveDesignPreview();
     });
   }

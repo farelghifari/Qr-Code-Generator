@@ -764,4 +764,25 @@ assert(svgNoBarcode.includes('stroke="#000000"'), 'Harus memiliki border solid')
 assert(!svgNoBarcode.includes('height="75"'), 'Format NONE tidak boleh memuat elemen barcode garis tinggi');
 console.log('✅ Format Tanpa Barcode (Teks Saja) LULUS.');
 
-console.log('\n🎉 SEMUA 35 PENGUJIAN VERIFIKASI BERHASIL 100%!');
+// Test 36: Opsi Hanya Nomor ID (Minimalis Tanpa Detail Produk)
+console.log('36. Menguji Opsi Hanya Nomor ID (Minimalis)...');
+const svgOnlyId = BarcodeEngine.toSVGString('ORD00000000152900001', {
+  format: 'CODE128',
+  layoutPosition: 'center-id-only',
+  onlyId: true,
+  labelWidthMm: 50,
+  labelHeightMm: 18,
+  fontSizeId: 16,
+  brand: 'Hartadinata',
+  gramasi: '1 gr',
+  vault: 'Wisma Mandiri',
+  showBorder: true
+});
+assert(svgOnlyId.includes('<svg'), 'SVG Hanya ID harus valid XML SVG');
+assert(svgOnlyId.includes('ORD00000000152900001'), 'Harus menampilkan nomor ID');
+assert(!svgOnlyId.includes('Hartadinata'), 'Tidak boleh memuat Brand ketika mode onlyId aktif');
+assert(!svgOnlyId.includes('Wisma Mandiri'), 'Tidak boleh memuat Lokasi ketika mode onlyId aktif');
+assert(svgOnlyId.includes('stroke="#000000"'), 'Harus memiliki border solid');
+console.log('✅ Opsi Hanya Nomor ID (Minimalis) LULUS.');
+
+console.log('\n🎉 SEMUA 36 PENGUJIAN VERIFIKASI BERHASIL 100%!');

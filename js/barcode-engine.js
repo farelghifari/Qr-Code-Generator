@@ -235,8 +235,9 @@
    */
   function extractDetailLines(options) {
     if (!options) return [];
-    
-    // 1. Jika ada labelLines eksplisit (array baris 1 s/d 6 yang sudah dikonfigurasi dinamis)
+    if (options.onlyId === true || options.layoutPosition === 'center-id-only' || options.hideDetails === true) {
+      return [];
+    }
     if (Array.isArray(options.labelLines) && options.labelLines.length > 0) {
       const cleanLines = options.labelLines
         .map(s => String(s !== undefined && s !== null ? s : '').trim())
@@ -991,11 +992,12 @@
     const showIdSide = displayValue && idPosition === 'side-text';
     const scaleFactor = Math.max(0.3, Math.min(1.6, parseFloat(barcodeScale) || 1.0));
     const lineGap = Math.max(1, Math.round(2 * resScale));
-    const idGap = Math.max(1, Math.round(2 * resScale));
 
-    if (layoutPosition === 'center-compact' || layoutPosition === 'stacked') {
-      const isCenterCompact = layoutPosition === 'center-compact';
-      const numLines = detailLines.length;
+    const isCenterCompact = layoutPosition === 'center-compact' || layoutPosition === 'center-id-only';
+    const isOnlyId = options.onlyId === true || layoutPosition === 'center-id-only';
+
+    if (isCenterCompact || layoutPosition === 'stacked') {
+      const numLines = isOnlyId ? 0 : detailLines.length;
       let uniformFontSize = Math.round(fontSizeDetails * resScale);
       let totalDetailH = 0;
       if (numLines > 0) {
@@ -1006,19 +1008,31 @@
         totalDetailH = (numLines * uniformFontSize) + ((numLines - 1) * lineGap);
       }
 
-      let fitIdSize = Math.max(Math.round(6 * resScale), Math.round(fontSizeId * resScale * 0.85));
+      // Font ID: Izinkan ukuran lebih besar sesuai slider font-size-id
+      let fitIdSize = Math.round(fontSizeId * resScale);
+      ctx.font = `bold ${fitIdSize}px monospace`;
+      const measuredIdW = ctx.measureText(resolvedDisplay).width;
+      if (measuredIdW > availW && availW > 0) {
+        fitIdSize = Math.max(Math.round(5.5 * resScale), Math.floor(fitIdSize * (availW / measuredIdW)));
+      }
+
+      const idGap = Math.max(1, Math.round(1.5 * resScale));
       const totalIdH = showIdUnder ? (fitIdSize + idGap) : 0;
       const gapBetween = numLines > 0 ? Math.max(2, Math.round(2.5 * resScale)) : 0;
 
-      const maxBarH = Math.max(8, availH - totalDetailH - gapBetween - totalIdH);
+      const maxBarH = Math.max(6, availH - totalDetailH - gapBetween - totalIdH);
       const barH = isCenterCompact
-        ? Math.max(8, Math.min(Math.round(availH * 0.28 * scaleFactor), maxBarH))
-        : Math.max(10, Math.min(Math.round(availH * 0.38 * scaleFactor), maxBarH));
+        ? (numLines === 0
+            ? Math.max(8, Math.min(Math.round(availH * 0.36 * scaleFactor), maxBarH))
+            : Math.max(6, Math.min(Math.round(availH * 0.22 * scaleFactor), maxBarH)))
+        : Math.max(8, Math.min(Math.round(availH * 0.35 * scaleFactor), maxBarH));
 
       const maxAllowedBarW = isCenterCompact
-        ? Math.min(availW * 0.70, Math.max(80, availW * 0.55 * scaleFactor))
+        ? (numLines === 0
+            ? Math.min(availW * 0.72, Math.max(50, availW * 0.48 * scaleFactor))
+            : Math.min(availW * 0.60, Math.max(45, availW * 0.40 * scaleFactor)))
         : (availW * 0.88);
-      const modW = Math.max(0.5, Math.min(2.5, maxAllowedBarW / (binary.length || 1)));
+      const modW = Math.max(0.4, Math.min(2.5, maxAllowedBarW / (binary.length || 1)));
       const totalBarW = Math.round(binary.length * modW);
       const barX = effMargin + Math.round((availW - totalBarW) / 2);
 
@@ -1464,9 +1478,11 @@
     const showIdUnder = displayValue && idPosition === 'under-code';
     const scaleFactor = Math.max(0.3, Math.min(1.6, parseFloat(barcodeScale) || 1.0));
     const lineGap = Math.max(1, Math.round(2 * resScale));
-    const idGap = Math.max(1, Math.round(2 * resScale));
 
-    const numLines = detailLines.length;
+    const isCenterCompact = layoutPosition === 'center-compact' || layoutPosition === 'center-id-only';
+    const isOnlyId = options.onlyId === true || layoutPosition === 'center-id-only';
+
+    const numLines = isOnlyId ? 0 : detailLines.length;
     let uniformFontSize = Math.round(fontSizeDetails * resScale);
     let totalDetailH = 0;
     if (numLines > 0) {
@@ -1477,15 +1493,30 @@
       totalDetailH = (numLines * uniformFontSize) + ((numLines - 1) * lineGap);
     }
 
-    let fitIdSize = Math.max(Math.round(6 * resScale), Math.round(fontSizeId * resScale * 0.85));
+    let fitIdSize = Math.round(fontSizeId * resScale);
+    const charCount = Math.max(1, (resolvedDisplay || '').length);
+    const estIdW = charCount * (fitIdSize * 0.62);
+    if (estIdW > availW && availW > 0) {
+      fitIdSize = Math.max(Math.round(5.5 * resScale), Math.floor(fitIdSize * (availW / estIdW)));
+    }
+
+    const idGap = Math.max(1, Math.round(1.5 * resScale));
     const totalIdH = showIdUnder ? (fitIdSize + idGap) : 0;
     const gapBetween = numLines > 0 ? Math.max(2, Math.round(2.5 * resScale)) : 0;
 
-    const maxBarH = Math.max(8, availH - totalDetailH - gapBetween - totalIdH);
-    const barH = Math.max(8, Math.min(Math.round(availH * 0.28 * scaleFactor), maxBarH));
+    const maxBarH = Math.max(6, availH - totalDetailH - gapBetween - totalIdH);
+    const barH = isCenterCompact
+      ? (numLines === 0
+          ? Math.max(8, Math.min(Math.round(availH * 0.36 * scaleFactor), maxBarH))
+          : Math.max(6, Math.min(Math.round(availH * 0.22 * scaleFactor), maxBarH)))
+      : Math.max(8, Math.min(Math.round(availH * 0.35 * scaleFactor), maxBarH));
 
-    const maxAllowedBarW = Math.min(availW * 0.70, Math.max(80, availW * 0.55 * scaleFactor));
-    const modW = Math.max(0.5, Math.min(2.5, maxAllowedBarW / (binary.length || 1)));
+    const maxAllowedBarW = isCenterCompact
+      ? (numLines === 0
+          ? Math.min(availW * 0.72, Math.max(50, availW * 0.48 * scaleFactor))
+          : Math.min(availW * 0.60, Math.max(45, availW * 0.40 * scaleFactor)))
+      : (availW * 0.88);
+    const modW = Math.max(0.4, Math.min(2.5, maxAllowedBarW / (binary.length || 1)));
     const totalBarW = Math.round(binary.length * modW);
     const barX = effMargin + Math.round((availW - totalBarW) / 2);
 
@@ -1544,7 +1575,7 @@
     if (fmt === 'NONE' || fmt === 'NO_CODE' || fmt === 'NO-CODE' || fmt === 'TEXT') {
       return renderTextOnlyToSVG(text, options);
     }
-    if (options.layoutPosition === 'center-compact') {
+    if (options.layoutPosition === 'center-compact' || options.layoutPosition === 'center-id-only' || options.onlyId) {
       return renderBarcodeToSVG(text, options);
     }
 

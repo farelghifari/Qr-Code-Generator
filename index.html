@@ -585,6 +585,7 @@
                   <option value="side-right">QR/Barcode di Kanan &bull; Teks di Kiri</option>
                   <option value="stacked">QR/Barcode di Atas &bull; Teks di Bawah (Vertikal)</option>
                   <option value="center-compact">Barcode 1D Kecil di Tengah &bull; Teks Detail Simetris</option>
+                  <option value="center-id-only">Hanya Barcode &bull; Nomor ID Pas di Bawahnya (Minimalis)</option>
                 </select>
               </div>
 
@@ -596,7 +597,7 @@
                   </span>
                   <span id="barcode-size-val" class="font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-1.5 py-0.2 rounded text-[10px]">100%</span>
                 </div>
-                <input type="range" id="barcode-size-slider" min="50" max="150" step="5" value="100" class="w-full accent-indigo-600 h-1 bg-slate-200 rounded cursor-pointer">
+                <input type="range" id="barcode-size-slider" min="20" max="150" step="5" value="100" class="w-full accent-indigo-600 h-1 bg-slate-200 rounded cursor-pointer">
               </div>
 
               <!-- Posisi & Slicing Nomor Barcode / ID -->
@@ -630,21 +631,21 @@
                   <span class="text-slate-600 font-medium">Font Judul / Brand:</span>
                   <span id="font-size-title-val" class="font-bold text-indigo-700">10 pt</span>
                 </div>
-                <input type="range" id="font-size-title-slider" min="6" max="18" step="1" value="10" class="w-full accent-indigo-600 h-1 bg-slate-200 rounded cursor-pointer">
+                <input type="range" id="font-size-title-slider" min="6" max="24" step="1" value="10" class="w-full accent-indigo-600 h-1 bg-slate-200 rounded cursor-pointer">
               </div>
               <div>
                 <div class="flex items-center justify-between text-[11px] mb-0.5">
                   <span class="text-slate-600 font-medium">Font Detail & Lokasi:</span>
                   <span id="font-size-details-val" class="font-bold text-indigo-700">8 pt</span>
                 </div>
-                <input type="range" id="font-size-details-slider" min="5" max="14" step="1" value="8" class="w-full accent-indigo-600 h-1 bg-slate-200 rounded cursor-pointer">
+                <input type="range" id="font-size-details-slider" min="5" max="22" step="1" value="8" class="w-full accent-indigo-600 h-1 bg-slate-200 rounded cursor-pointer">
               </div>
               <div>
                 <div class="flex items-center justify-between text-[11px] mb-0.5">
                   <span class="text-slate-600 font-medium">Font Nomor ID:</span>
                   <span id="font-size-id-val" class="font-bold text-indigo-700">8 pt</span>
                 </div>
-                <input type="range" id="font-size-id-slider" min="5" max="14" step="1" value="8" class="w-full accent-indigo-600 h-1 bg-slate-200 rounded cursor-pointer">
+                <input type="range" id="font-size-id-slider" min="5" max="26" step="1" value="8" class="w-full accent-indigo-600 h-1 bg-slate-200 rounded cursor-pointer">
               </div>
             </div>
 
@@ -720,6 +721,14 @@
             <label class="inline-flex items-center gap-2 cursor-pointer text-slate-700">
               <input type="checkbox" id="show-text-checkbox" checked class="rounded text-indigo-600 focus:ring-indigo-500">
               <span>Tampilkan nomor ID pada stiker</span>
+            </label>
+          </div>
+
+          <!-- Hanya Nomor ID di Label (Minimalis Tanpa Detail Produk) -->
+          <div class="flex items-center justify-between pt-1 border-t border-slate-100">
+            <label class="inline-flex items-center gap-2 cursor-pointer text-slate-700">
+              <input type="checkbox" id="only-id-checkbox" class="rounded text-indigo-600 focus:ring-indigo-500">
+              <span class="font-medium text-indigo-950">Hanya nomor ID di label (tanpa teks detail produk)</span>
             </label>
           </div>
 
