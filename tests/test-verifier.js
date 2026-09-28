@@ -854,15 +854,34 @@ const tj126LabelW = 50;
 const tj126LabelH = 10;
 const tj126Cols = 3;
 const tj126Rows = 16;
-const tj126MarginTop = 10;
-const tj126MarginLeft = 3;
-const tj126ColGap = 5;
+const tj126MarginTop = 2;
+const tj126MarginBottom = 2;
+const tj126MarginLeft = 4;
+const tj126MarginRight = 4;
+const tj126ColGap = 3;
 const tj126RowGap = 2;
+const tj126GroupEveryRows = 4;
+const tj126GroupGap = 5;
 
-// Total lebar stiker + gap: 3 * 50 + 2 * 5 = 160 mm. Margin kiri = 3 mm, margin kanan = 2 mm (Total 165 mm).
-assert.strictEqual(tj126MarginLeft + (tj126Cols * tj126LabelW) + ((tj126Cols - 1) * tj126ColGap) + 2, tj126PaperW, 'Lebar horizontal harus tepat 165 mm');
-// Total tinggi stiker + gap: 16 * 10 + 15 * 2 = 190 mm. Margin atas = 10 mm, margin bawah = 10 mm (Total 210 mm).
-assert.strictEqual(tj126MarginTop + (tj126Rows * tj126LabelH) + ((tj126Rows - 1) * tj126RowGap) + 10, tj126PaperH, 'Tinggi vertikal harus tepat 210 mm simetris');
+// Total lebar stiker + gap: 3 * 50 + 2 * 3 = 156 mm. Margin kiri = 4 mm, margin kanan = 4 mm + 1 mm edge (Total 165 mm).
+assert.strictEqual(tj126MarginLeft + (tj126Cols * tj126LabelW) + ((tj126Cols - 1) * tj126ColGap) + tj126MarginRight + 1, tj126PaperW, 'Lebar horizontal harus tepat 165 mm');
+
+// Verifikasi posisi Y baris ke-0 s/d baris ke-15 dengan jeda 5mm setiap 4 baris:
+// Kelompok 0 (baris 0-3): Y = 2 + row * 12 mm
+// Kelompok 1 (baris 4-7): Y = 2 + row * 12 + 3 mm
+// Kelompok 2 (baris 8-11): Y = 2 + row * 12 + 6 mm
+// Kelompok 3 (baris 12-15): Y = 2 + row * 12 + 9 mm
+const getYMm = (row) => tj126MarginTop + (row * (tj126LabelH + tj126RowGap)) + (Math.floor(row / tj126GroupEveryRows) * (tj126GroupGap - tj126RowGap));
+assert.strictEqual(getYMm(0), 2, 'Baris 0 mulai pada 2 mm');
+assert.strictEqual(getYMm(3), 38, 'Baris 3 mulai pada 38 mm (akhir kelompok 1 pada 48 mm)');
+assert.strictEqual(getYMm(4), 53, 'Baris 4 mulai pada 53 mm (jeda 5 mm dari baris 3)');
+assert.strictEqual(getYMm(7), 89, 'Baris 7 mulai pada 89 mm (akhir kelompok 2 pada 99 mm)');
+assert.strictEqual(getYMm(8), 104, 'Baris 8 mulai pada 104 mm (jeda 5 mm dari baris 7)');
+assert.strictEqual(getYMm(11), 140, 'Baris 11 mulai pada 140 mm (akhir kelompok 3 pada 150 mm)');
+assert.strictEqual(getYMm(12), 155, 'Baris 12 mulai pada 155 mm (jeda 5 mm dari baris 11)');
+assert.strictEqual(getYMm(15), 191, 'Baris 15 mulai pada 191 mm');
+assert.strictEqual(getYMm(15) + tj126LabelH, 201, 'Ujung bawah label baris terakhir adalah 201 mm (tersisa margin bawah >= 2 mm)');
+assert(getYMm(15) + tj126LabelH + tj126MarginBottom <= tj126PaperH, 'Semua baris harus muat dalam kertas 210 mm');
 assert.strictEqual(tj126Cols * tj126Rows, 48, 'Total label harus tepat 48 stiker per lembar');
 
 // Test render stiker 10 mm di BarcodeEngine tanpa crash atau overflow
@@ -891,7 +910,17 @@ const svg126_None = BarcodeEngine.toSVGString('ORD00000000152900001', {
   brand: 'Hartadinata'
 });
 assert(svg126_None.includes('<svg'), 'Harus menghasilkan SVG Tanpa Barcode valid untuk ukuran 10x50 mm');
-console.log('✅ Presisi Geometri & Rendering Tom & Jerry No. 126 (10 x 50 mm, 48 label) LULUS.');
+
+// Verifikasi kalkulasi koordinat fisik X dan Y untuk 48 label (3 kolom x 16 baris) dengan jeda 5mm per 4 baris
+for (let row = 0; row < tj126Rows; row++) {
+  for (let col = 0; col < tj126Cols; col++) {
+    const xMm = tj126MarginLeft + (col * (tj126LabelW + tj126ColGap));
+    const yMm = getYMm(row);
+    assert(xMm >= 4 && xMm + tj126LabelW <= 165, `Koordinat horizontal label [${row}, ${col}] harus berada dalam kertas (X: ${xMm}mm)`);
+    assert(yMm >= 2 && yMm + tj126LabelH <= 210, `Koordinat vertikal label [${row}, ${col}] harus berada dalam kertas (Y: ${yMm}mm)`);
+  }
+}
+console.log('✅ Presisi Geometri & Rendering Tom & Jerry No. 126 (10 x 50 mm, 48 label, jeda 5mm per 4 baris) LULUS.');
 
 console.log('\n🎉 SEMUA 39 PENGUJIAN VERIFIKASI BERHASIL 100%!');
 

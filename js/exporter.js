@@ -493,6 +493,9 @@
 
     const engine = (typeof window !== 'undefined' && window.BarcodeEngine) || (typeof root !== 'undefined' && root && root.BarcodeEngine);
 
+    const groupEveryRows = barcodeRenderOptions.groupEveryRows || 0;
+    const groupGapMm = barcodeRenderOptions.groupGapMm || 0;
+
     // Render setiap posisi label
     for (let i = 0; i < pageItems.length; i++) {
       const item = pageItems[i];
@@ -504,9 +507,14 @@
       const col = i % cols;
       const row = Math.floor(i / cols);
 
+      // Hitung jeda grup vertikal jika ada (misal: setiap 4 baris ada jeda groupGapMm)
+      const groupOffsetMm = (groupEveryRows > 0 && groupGapMm > 0)
+        ? Math.floor(row / groupEveryRows) * (groupGapMm - rowGapMm)
+        : 0;
+
       // Hitung koordinat fisik X dan Y secara absolut dalam milimeter untuk mencegah akumulasi rounding error
       const xMm = leftMarginMm + (col * (labelWidthMm + colGapMm));
-      const yMm = topMarginMm + (row * (labelHeightMm + rowGapMm));
+      const yMm = topMarginMm + (row * (labelHeightMm + rowGapMm)) + groupOffsetMm;
       const x = Math.round((xMm * DPI) / 25.4);
       const y = Math.round((yMm * DPI) / 25.4);
 

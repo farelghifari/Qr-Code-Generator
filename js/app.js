@@ -61,11 +61,15 @@ document.addEventListener('DOMContentLoaded', () => {
       labelHeightMm: 10,
       cols: 3,
       rows: 16,
-      topMarginMm: 10,
-      leftMarginMm: 3,
-      colGapMm: 5,
+      topMarginMm: 2,
+      bottomMarginMm: 2,
+      leftMarginMm: 4,
+      rightMarginMm: 4,
+      colGapMm: 3,
       rowGapMm: 2,
-      description: 'Kertas 16,5 × 21 cm • 3 Kolom × 16 Baris (48 Label)'
+      groupEveryRows: 4,
+      groupGapMm: 5,
+      description: 'Kertas 16,5 × 21 cm • 3 Kolom × 16 Baris (48 Label, Jeda 5mm per 4 Baris)'
     },
     'a4-3x10': {
       name: 'Kertas Stiker A4 (3×10)',
@@ -1898,6 +1902,8 @@ document.addEventListener('DOMContentLoaded', () => {
       leftMarginMm: marginLeft,
       colGapMm: gapCol,
       rowGapMm: gapRow,
+      groupEveryRows: activePresetObj.groupEveryRows || 0,
+      groupGapMm: activePresetObj.groupGapMm || 0,
       layoutPosition: layoutPos,
       fontSizeTitle: fsTitle,
       fontSizeDetails: fsDetails,

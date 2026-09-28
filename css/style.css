@@ -538,7 +538,9 @@ body {
      LAYOUT KHUSUS TOM & JERRY NO. 126
      Kertas: 165 × 210 mm
      Label: 50 × 10 mm (3 Kolom × 16 Baris = 48 Label)
-     Margin: Atas 10mm, Kiri 3mm, Gap Kolom 5mm, Gap Baris 2mm
+     Margin: Atas 2mm, Bawah 2mm, Kanan & Kiri 4mm
+     Jarak Antar Label: Horizontal 3mm, Vertikal 2mm
+     Jeda Kelompok: Setiap 4 baris label ada jarak 5mm (tambahan 3mm di atas row gap 2mm)
      ========================================================= */
   body.print-mode-tj-126 {
     width: 165mm !important;
@@ -551,12 +553,14 @@ body {
     display: grid !important;
     grid-template-columns: repeat(3, 50mm) !important;
     grid-auto-rows: 10mm !important;
-    column-gap: 5mm !important;
+    column-gap: 3mm !important;
     row-gap: 2mm !important;
     width: 165mm !important;
     box-sizing: border-box !important;
-    padding-top: 10mm !important;
-    padding-left: 3mm !important;
+    padding-top: 2mm !important;
+    padding-left: 4mm !important;
+    padding-right: 4mm !important;
+    padding-bottom: 2mm !important;
     margin: 0 !important;
     justify-content: start !important;
     align-content: start !important;
@@ -570,11 +574,13 @@ body {
     display: grid !important;
     grid-template-columns: repeat(3, 50mm) !important;
     grid-auto-rows: 10mm !important;
-    column-gap: 5mm !important;
+    column-gap: 3mm !important;
     row-gap: 2mm !important;
     box-sizing: border-box !important;
-    padding-top: 10mm !important;
-    padding-left: 3mm !important;
+    padding-top: 2mm !important;
+    padding-left: 4mm !important;
+    padding-right: 4mm !important;
+    padding-bottom: 2mm !important;
     margin: 0 !important;
     justify-content: start !important;
     align-content: start !important;
@@ -585,6 +591,19 @@ body {
   body.print-mode-tj-126 .print-page-sheet:last-child {
     page-break-after: avoid !important;
     break-after: avoid !important;
+  }
+
+  /* Setiap 4 baris label (baris ke-4, ke-8, ke-12) ada jarak 5mm total (tambah 3mm pada margin-bottom) */
+  body.print-mode-tj-126 .barcode-item-card:nth-child(48n + 10),
+  body.print-mode-tj-126 .barcode-item-card:nth-child(48n + 11),
+  body.print-mode-tj-126 .barcode-item-card:nth-child(48n + 12),
+  body.print-mode-tj-126 .barcode-item-card:nth-child(48n + 22),
+  body.print-mode-tj-126 .barcode-item-card:nth-child(48n + 23),
+  body.print-mode-tj-126 .barcode-item-card:nth-child(48n + 24),
+  body.print-mode-tj-126 .barcode-item-card:nth-child(48n + 34),
+  body.print-mode-tj-126 .barcode-item-card:nth-child(48n + 35),
+  body.print-mode-tj-126 .barcode-item-card:nth-child(48n + 36) {
+    margin-bottom: 3mm !important;
   }
 
   body.print-mode-tj-126 .barcode-item-card:nth-child(48n) {
