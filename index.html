@@ -487,6 +487,7 @@
 
             <select id="preset-template-select" class="w-full px-2.5 py-1.5 border border-amber-300 rounded-lg bg-white font-bold text-xs text-slate-800 focus:ring-2 focus:ring-amber-500 outline-none">
               <option value="tj-107" selected>Tom & Jerry No. 107 (18 × 50 mm, 30 label/lembar 165×210 mm)</option>
+              <option value="tj-126">Tom & Jerry No. 126 (10 × 50 mm, 48 label/lembar 165×210 mm)</option>
               <option value="tj-108">Tom & Jerry No. 108 (18 × 38 mm, 40 label/lembar 165×210 mm)</option>
               <option value="tj-121">Tom & Jerry No. 121 (38 × 75 mm, 10 label/lembar 165×210 mm)</option>
               <option value="a4-3x10">Kertas Stiker A4 (3 Kolom × 10 Baris = 30 label, 70 × 29.7 mm)</option>
@@ -1133,6 +1134,18 @@
             </div>
           </label>
 
+          <!-- OPSI TOM & JERRY NO. 126 -->
+          <label class="flex items-center p-3 border-2 border-emerald-500 bg-emerald-50/50 rounded-xl cursor-pointer hover:bg-emerald-50 transition shadow-xs">
+            <input type="radio" name="print-layout" value="tj-126" class="text-emerald-600 focus:ring-emerald-500">
+            <div class="ml-3 flex-1">
+              <div class="flex items-center justify-between">
+                <span class="block font-bold text-emerald-950 text-xs">Stiker Tom & Jerry No. 126 (10 mm x 50 mm)</span>
+                <span class="bg-emerald-600 text-white text-[9px] font-extrabold px-2 py-0.5 rounded shadow-xs">Ukuran 1,0 x 5 cm</span>
+              </div>
+              <span class="text-emerald-800 text-[11px] block mt-0.5">Format 3 kolom x 16 baris (48 stiker/lembar) pas presisi label TJ 126</span>
+            </div>
+          </label>
+
           <label class="flex items-center p-3 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition">
             <input type="radio" name="print-layout" value="a4-3col" class="text-indigo-600 focus:ring-indigo-500">
             <div class="ml-3">
@@ -1200,7 +1213,7 @@
               <option value="0">Lembar 1 (Label 1 - 30)</option>
             </select>
           </div>
-          <span class="text-[10px] text-amber-700 block">Kertas Tom & Jerry No. 107 memuat tepat 30 label per lembar.</span>
+          <span id="print-sheet-info-subtext" class="text-[10px] text-amber-700 block">Kapasitas lembaran disesuaikan otomatis mengikuti format kertas yang dipilih.</span>
         </div>
 
         <!-- Checkbox Garis Bantu Batas Stiker (Default: Tidak Ada Garis Border) -->

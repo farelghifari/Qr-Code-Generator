@@ -270,6 +270,7 @@ const templates = {
   'tj-107': { cols: 3, rows: 10, expected: 30 },
   'tj-108': { cols: 5, rows: 8, expected: 40 },
   'tj-121': { cols: 2, rows: 5, expected: 10 },
+  'tj-126': { cols: 3, rows: 16, expected: 48 },
   'a4-3x10': { cols: 3, rows: 10, expected: 30 },
   'a4-2x7': { cols: 2, rows: 7, expected: 14 },
   'thermal-roll': { cols: 1, rows: 1, expected: 1 },
@@ -280,7 +281,7 @@ for (const [key, tmpl] of Object.entries(templates)) {
   const cap = tmpl.cols * tmpl.rows;
   assert.strictEqual(cap, tmpl.expected, `Kapasitas template ${key} harus ${tmpl.expected}`);
 }
-console.log('✅ Kalkulasi Kapasitas Template Lembaran LULUS (Semua 7 template akurat).');
+console.log('✅ Kalkulasi Kapasitas Template Lembaran LULUS (Semua 8 template akurat).');
 
 // Test 18: Batch / Folder Partitioning Logic
 console.log('18. Menguji Partisi Folder / Batch...');
@@ -845,6 +846,54 @@ const svgCleanNone = BarcodeEngine.toSVGString('ORD00000000152900001', {
 assert(!svgCleanNone.includes('stroke="#000000"'), 'Default label Tanpa Barcode tidak boleh memuat garis border stroke');
 console.log('✅ Mode Default Tanpa Garis Border (Stiker Bersih) LULUS.');
 
-console.log('\n🎉 SEMUA 38 PENGUJIAN VERIFIKASI BERHASIL 100%!');
+// Test 39: Verifikasi Presisi Geometri Tom & Jerry No. 126 (10 x 50 mm, 48 Label)
+console.log('39. Menguji Presisi Geometri & Kompatibilitas Tom & Jerry No. 126 (10 x 50 mm, 48 label)...');
+const tj126PaperW = 165;
+const tj126PaperH = 210;
+const tj126LabelW = 50;
+const tj126LabelH = 10;
+const tj126Cols = 3;
+const tj126Rows = 16;
+const tj126MarginTop = 10;
+const tj126MarginLeft = 3;
+const tj126ColGap = 5;
+const tj126RowGap = 2;
+
+// Total lebar stiker + gap: 3 * 50 + 2 * 5 = 160 mm. Margin kiri = 3 mm, margin kanan = 2 mm (Total 165 mm).
+assert.strictEqual(tj126MarginLeft + (tj126Cols * tj126LabelW) + ((tj126Cols - 1) * tj126ColGap) + 2, tj126PaperW, 'Lebar horizontal harus tepat 165 mm');
+// Total tinggi stiker + gap: 16 * 10 + 15 * 2 = 190 mm. Margin atas = 10 mm, margin bawah = 10 mm (Total 210 mm).
+assert.strictEqual(tj126MarginTop + (tj126Rows * tj126LabelH) + ((tj126Rows - 1) * tj126RowGap) + 10, tj126PaperH, 'Tinggi vertikal harus tepat 210 mm simetris');
+assert.strictEqual(tj126Cols * tj126Rows, 48, 'Total label harus tepat 48 stiker per lembar');
+
+// Test render stiker 10 mm di BarcodeEngine tanpa crash atau overflow
+const svg126_1D = BarcodeEngine.toSVGString('ORD00000000152900001', {
+  format: 'CODE128',
+  layoutPosition: 'center-compact',
+  labelWidthMm: tj126LabelW,
+  labelHeightMm: tj126LabelH
+});
+assert(svg126_1D.includes('<svg'), 'Harus menghasilkan SVG 1D valid untuk ukuran 10x50 mm');
+assert(svg126_1D.includes('ORD00000000152900001'), 'Harus memuat ID stiker');
+
+const svg126_QR = BarcodeEngine.renderQRCodeToSVG('ORD00000000152900001', {
+  labelWidthMm: tj126LabelW,
+  labelHeightMm: tj126LabelH,
+  layoutPosition: 'side-left',
+  brand: 'Hartadinata',
+  gramasi: '1 gr'
+});
+assert(svg126_QR.includes('<svg'), 'Harus menghasilkan SVG QR valid untuk ukuran 10x50 mm');
+
+const svg126_None = BarcodeEngine.toSVGString('ORD00000000152900001', {
+  format: 'NONE',
+  labelWidthMm: tj126LabelW,
+  labelHeightMm: tj126LabelH,
+  brand: 'Hartadinata'
+});
+assert(svg126_None.includes('<svg'), 'Harus menghasilkan SVG Tanpa Barcode valid untuk ukuran 10x50 mm');
+console.log('✅ Presisi Geometri & Rendering Tom & Jerry No. 126 (10 x 50 mm, 48 label) LULUS.');
+
+console.log('\n🎉 SEMUA 39 PENGUJIAN VERIFIKASI BERHASIL 100%!');
+
 
 

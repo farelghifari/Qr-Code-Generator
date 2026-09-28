@@ -534,6 +534,99 @@ body {
     image-rendering: crisp-edges !important;
   }
 
+  /* =========================================================
+     LAYOUT KHUSUS TOM & JERRY NO. 126
+     Kertas: 165 × 210 mm
+     Label: 50 × 10 mm (3 Kolom × 16 Baris = 48 Label)
+     Margin: Atas 10mm, Kiri 3mm, Gap Kolom 5mm, Gap Baris 2mm
+     ========================================================= */
+  body.print-mode-tj-126 {
+    width: 165mm !important;
+    height: 210mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  body.print-mode-tj-126 #barcode-grid {
+    display: grid !important;
+    grid-template-columns: repeat(3, 50mm) !important;
+    grid-auto-rows: 10mm !important;
+    column-gap: 5mm !important;
+    row-gap: 2mm !important;
+    width: 165mm !important;
+    box-sizing: border-box !important;
+    padding-top: 10mm !important;
+    padding-left: 3mm !important;
+    margin: 0 !important;
+    justify-content: start !important;
+    align-content: start !important;
+    page-break-inside: auto;
+  }
+
+  body.print-mode-tj-126 .print-page-sheet {
+    width: 165mm !important;
+    height: 210mm !important;
+    max-height: 210mm !important;
+    display: grid !important;
+    grid-template-columns: repeat(3, 50mm) !important;
+    grid-auto-rows: 10mm !important;
+    column-gap: 5mm !important;
+    row-gap: 2mm !important;
+    box-sizing: border-box !important;
+    padding-top: 10mm !important;
+    padding-left: 3mm !important;
+    margin: 0 !important;
+    justify-content: start !important;
+    align-content: start !important;
+    page-break-after: always !important;
+    break-after: page !important;
+  }
+
+  body.print-mode-tj-126 .print-page-sheet:last-child {
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+  }
+
+  body.print-mode-tj-126 .barcode-item-card:nth-child(48n) {
+    page-break-after: always !important;
+    break-after: page !important;
+  }
+
+  body.print-mode-tj-126 .barcode-item-card {
+    width: 50mm !important;
+    height: 10mm !important;
+    max-width: 50mm !important;
+    max-height: 10mm !important;
+    box-sizing: border-box !important;
+    padding: 0.2mm !important;
+    margin: 0 !important;
+    border: none !important;
+    background: #ffffff !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    align-items: center !important;
+    overflow: hidden !important;
+  }
+
+  body.print-mode-tj-126.print-show-borders .barcode-item-card {
+    border: 0.5px dashed #cbd5e1 !important;
+  }
+
+  body.print-mode-tj-126 .barcode-item-card canvas {
+    max-width: 49.6mm !important;
+    max-height: 9.6mm !important;
+    width: 100% !important;
+    height: 100% !important;
+    display: block !important;
+    margin: 0 auto !important;
+    object-fit: contain !important;
+    image-rendering: -webkit-optimize-contrast !important;
+    image-rendering: crisp-edges !important;
+  }
+
   /* Layout Sheet Stiker A4 Standar */
   body.print-mode-a4-3col #barcode-grid {
     display: grid !important;

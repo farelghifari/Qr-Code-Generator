@@ -53,6 +53,20 @@ document.addEventListener('DOMContentLoaded', () => {
       rowGapMm: 2,
       description: 'Kertas 16,5 × 21 cm • 2 Kolom × 5 Baris (10 Label)'
     },
+    'tj-126': {
+      name: 'Tom & Jerry No. 126',
+      paperWidthMm: 165,
+      paperHeightMm: 210,
+      labelWidthMm: 50,
+      labelHeightMm: 10,
+      cols: 3,
+      rows: 16,
+      topMarginMm: 10,
+      leftMarginMm: 3,
+      colGapMm: 5,
+      rowGapMm: 2,
+      description: 'Kertas 16,5 × 21 cm • 3 Kolom × 16 Baris (48 Label)'
+    },
     'a4-3x10': {
       name: 'Kertas Stiker A4 (3×10)',
       paperWidthMm: 210,
@@ -1864,10 +1878,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const isNone = currentCodeType === 'NONE';
     const chosenFormat = isNone ? 'NONE' : (isQR ? 'QR' : (barcodeFormat ? barcodeFormat.value : 'CODE128'));
+    const activePresetKey = presetTemplateSelect ? presetTemplateSelect.value : 'tj-107';
+    const activePresetObj = TEMPLATE_PRESETS[activePresetKey] || {};
+    const activePresetName = activePresetObj.name || 'Tom & Jerry';
 
     return {
       format: chosenFormat,
       codeType: currentCodeType,
+      templateKey: activePresetKey,
+      templateName: activePresetName,
       topLabel: topLabelInput ? topLabelInput.value.trim() : '',
       labelWidthMm: labelW,
       labelHeightMm: labelH,
@@ -3865,7 +3884,11 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   document.querySelectorAll('input[name="print-layout"]').forEach(radio => {
-    radio.addEventListener('change', () => {
+    radio.addEventListener('change', (e) => {
+      if (TEMPLATE_PRESETS[e.target.value]) {
+        if (presetTemplateSelect) presetTemplateSelect.value = e.target.value;
+        applyPresetTemplate(e.target.value);
+      }
       renderSheetPreviewInPrintModal();
     });
   });
@@ -3875,6 +3898,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!lastFilteredItems.length && !generatedItems.length) {
       showToast('Buat barcode terlebih dahulu sebelum mencetak.', 'error');
       return;
+    }
+    const currentPreset = presetTemplateSelect ? presetTemplateSelect.value : 'tj-107';
+    const targetRadio = document.querySelector(`input[name="print-layout"][value="${currentPreset}"]`);
+    if (targetRadio) {
+      targetRadio.checked = true;
     }
     updatePrintSheetSelector();
     printModal.classList.remove('hidden');
@@ -3898,6 +3926,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.body.classList.remove(
       'print-mode-tj-107',
+      'print-mode-tj-126',
       'print-mode-a4-3col',
       'print-mode-a4-2col',
       'print-mode-a4-4col',

@@ -643,7 +643,8 @@
       doc.addImage(imgData, 'JPEG', 0, 0, paperWidthMm, paperHeightMm, undefined, 'FAST');
     }
 
-    const defaultFilename = filename || (isAll ? 'Label_Tom_Jerry_107_Semua_Halaman.pdf' : `Label_Tom_Jerry_107_Halaman_${(parseInt(sheetIndex, 10) || 0) + 1}.pdf`);
+    const tmplName = (barcodeRenderOptions.templateName || (cols === 3 && rows === 16 ? 'Tom & Jerry No. 126' : 'Tom & Jerry No. 107')).replace(/[^a-zA-Z0-9_-]/g, '_');
+    const defaultFilename = filename || (isAll ? `Label_${tmplName}_Semua_Halaman.pdf` : `Label_${tmplName}_Halaman_${(parseInt(sheetIndex, 10) || 0) + 1}.pdf`);
     doc.save(defaultFilename);
   }
 
@@ -754,7 +755,8 @@
       sections: sections
     });
 
-    const defaultFilename = filename || (isAll ? 'Label_Tom_Jerry_107_Semua_Halaman.docx' : `Label_Tom_Jerry_107_Halaman_${(parseInt(sheetIndex, 10) || 0) + 1}.docx`);
+    const tmplName = (barcodeRenderOptions.templateName || (cols === 3 && rows === 16 ? 'Tom & Jerry No. 126' : 'Tom & Jerry No. 107')).replace(/[^a-zA-Z0-9_-]/g, '_');
+    const defaultFilename = filename || (isAll ? `Label_${tmplName}_Semua_Halaman.docx` : `Label_${tmplName}_Halaman_${(parseInt(sheetIndex, 10) || 0) + 1}.docx`);
     const blob = await docxLib.Packer.toBlob(doc);
     triggerDownload(blob, defaultFilename);
   }
