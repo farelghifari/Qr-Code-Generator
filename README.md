@@ -5,52 +5,52 @@
 Aplikasi ini 100% *client-side*, aman, ringan, dan bekerja secara *offline* tanpa memerlukan database eksternal.
 
 ---
+
 ## ✨ Fitur Utama
 
-1. **🏆 Mode Cetak Logam Mulia (Multi-Sheet) [BARU]**:
-   - **Pemrosesan Sekaligus 6 Sheet Excel**: Mengimpor 1 file Excel multi-sheet dan mencetak semua label sekaligus dalam SATU kali proses cetak/ekspor.
-   - **6 Grup Kanonikal Tetap**:
-     1. Antam 1g (`#DC2626` - Merah)
-     2. Antam 5g (`#EA580C` - Jingga)
-     3. Antam 10g (`#7C3AED` - Ungu)
-     4. Harta 1g (`#2563EB` - Biru)
-     5. Harta 5g (`#0891B2` - Sian)
-     6. Harta 10g (`#16A34A` - Hijau)
-   - **Toleransi Penamaan Sheet**: Mengenali berbagai variasi nama sheet (huruf besar/kecil, spasi, tanda hubung/garis bawah, kata "gr"/"gram", dsb.) dengan *fallback* urutan indeks (sheet 0 s/d 5). Sheet kosong dilewati dengan peringatan, duplikat ID otomatis dieliminasi dengan log peringatan.
-   - **Layout Alir Menyambung Antar Lembar (Continuous Flow)**: Format lembar **48 label (3 kolom × 16 baris)**. Antar grup mengalir tanpa paksaan potong halaman. Setiap grup diawali 1 sel header berwarna (misal "1 gram Antam"). Saat grup terpotong di akhir halaman, halaman berikutnya langsung melanjutkan nomor ID tanpa mengulang header. Lembar terakhir membiarkan sisa sel kosong.
-   - **Warna Teks Judul Grup & Barcode Scanner Safe**: Warna diterapkan khusus pada teks judul grup (dan brand/gramasi jika diatur). Garis barcode dan angka nomor ID tetap 100% **hitam pekat (#000000)** agar 100% terbaca oleh semua jenis scanner barcode.
-   - **File Contoh 449 ID**: Dilengkapi template `Sample_MultiSheet_Logam_Mulia.xlsx` (distribusi: Antam 1g: 217, Antam 5g: 24, Antam 10g: 6, Harta 1g: 177, Harta 5g: 20, Harta 10g: 5 = 449 ID + 6 header = 455 sel -> 10 lembar [kapasitas 480], sisa 25 sel kosong).
-
-2. **Format Identitas Unik Beragam**:
+1. **Format Identitas Unik Beragam**:
    - **Urut / Auto-Increment**: Prefix kustom (misal: `PRD-`), padding angka (misal: `0001` s/d `9999`), dan akhiran (*suffix*).
    - **Acak Alfanumerik (Serial Number)**: Huruf kapital, huruf kecil, dan angka tanpa karakter ambigu.
    - **Timestamp / Waktu**: Berdasarkan waktu presisi (`YYYYMMDD-HHmmss-XXXX`).
    - **UUID / GUID**: Format ID standar internasional (tersedia opsi 10 karakter heksadesimal pendek).
    - **Mode Tunggal**: Membuat 1 barcode secara cepat dengan nomor acak atau manual.
 
-3. **📊 Import File Excel 1-Sheet & Pemetaan Dinamis**:
+2. **📊 Import File Excel & Format Khusus Logam Mulia (Harta / Antam)**:
    - Dukungan unggah file Excel (`.xlsx`, `.xls`) dan CSV langsung di browser.
-   - Pemetaan dinamis hingga 6 baris kolom inventaris Logam Mulia.
-   - Disertai contoh file template Excel: `Hartadinata_Abadi_Shop_Sample.xlsx` dan `Butik_Emas_Antam_Sample.xlsx`.
+   - Pemetaan otomatis 6 kolom inventaris Logam Mulia:
+     - `Brand` (Hartadinata Abadi / Butik Emas Antam)
+     - `Gramasi` (misal: 0.5 gr, 10 gr)
+     - `Vault / Brankas`
+     - `Lemari Penyimpanan`
+     - `Laci Penyimpanan`
+     - `Kotak Penyimpanan`
+   - Opsi tampilan label 2 baris (rapi & jelas) atau 1 baris penuh.
+   - Disertai contoh file template Excel siap pakai: `Hartadinata_Abadi_Shop_Sample.xlsx` dan `Butik_Emas_Antam_Sample.xlsx`.
 
-4. **🔒 Preset Layout Lembar Cetak**:
-   - **48 Label (3 kolom × 16 baris)**: Ukuran label 50 × 10 mm pada kertas 165 × 210 mm (Logam Mulia / TJ-126).
-   - **Tom & Jerry No. 107 (18 mm × 50 mm)**: 30 label stiker per lembar (3 kolom × 10 baris).
-   - **Tom & Jerry No. 108, 121, 126, A4 3-kolom, A4 2-kolom, A4 4-kolom, & Thermal Roll**.
+3. **🔒 Ukuran Terkunci Stiker Tom & Jerry No. 107 (18 mm × 50 mm)**:
+   - Format stiker terkunci presisi pada dimensi **18 mm × 50 mm** (591 × 213 px pada 300 DPI).
+   - 1 lembar memuat **30 label stiker** (3 kolom × 10 baris).
+   - Dilengkapi garis bantu batas stiker untuk mempermudah pemotongan atau pencetakan.
 
-5. **⚡ Mesin Barcode Presisi & Scannable (Code 128 Auto & QR Code)**:
-   - Bar integer bulat (2px) tanpa anti-aliasing blur menghasilkan garis 100% hitam pekat (#000000).
-   - Margin tenang (*quiet zone*) menjamin pembacaan instan oleh barcode scanner engine fisik (Zebra/Honeywell) maupun kamera HP.
+4. **⚡ Mesin Barcode Presisi & Scannable (Code 128 Auto)**:
+   - Menggunakan **Code 128 Auto (Code B + Code C)** yang otomatis mengompresi deretan angka panjang (seperti `ORD00000000160600001`) menjadi densitas tinggi yang hemat ruang.
+   - Ketebalan bar integer bulat (2px) dan nonaktif *anti-aliasing blur* menghasilkan garis 100% hitam pekat (#000000) dan putih bersih (#FFFFFF).
+   - Menyediakan margin tenang (*quiet zone*) 106.5 px pada setiap sisi label, menjamin pembacaan instan oleh *barcode scanner engine* fisik (Zebra/Honeywell) maupun aplikasi kamera HP.
+   - Mendukung pula **Code 39** dan **EAN-13**.
 
-6. **Sistem Anti-Duplikasi & Barcode Management**:
+5. **Sistem Anti-Duplikasi & Barcode Management**:
    - Menyimpan seluruh nomor ID yang pernah dibuat ke penyimpanan lokal (*LocalStorage*).
    - Tabel manajemen barcode untuk melacak status cetak (*Belum Dicetak* vs *Sudah Dicetak*), filter pencarian, dan aksi massal (*batch actions*).
 
-7. **Ekspor & Cetak Lengkap**:
-   - **Download PNG Lembar Penuh (300 DPI)**: Mendukung unduh per lembar maupun semua lembar (`sheetIndex = 'all'`).
-   - **Download PDF Lembaran**: Dokumen PDF multi-halaman beresolusi tinggi (A4 atau custom).
-   - **Download Word (.docx)**: Dokumen Word dengan tabel berpresisi geometri stiker.
-   - **Direct Print (`window.print()`)**: Presisi tinggi dengan `@media print` dan `print-color-adjust: exact`.
+6. **Ekspor & Cetak Lengkap**:
+   - **Download Gambar 1 Lembar Penuh (PNG 300 DPI)**: 30 label stiker Tom & Jerry 107 dalam 1 file gambar siap cetak.
+   - **Download PNG Satuan**: Gambar stiker ukuran presisi 18×50 mm.
+   - **Download Batch ZIP**: Seluruh barcode dipaketkan ke dalam file `.zip` (didukung *MiniZip* native client-side).
+   - **Export CSV**: Data tabel barcode dapat diekspor kembali ke spreadsheet.
+   - **Cetak Langsung**: Pratinjau cetak PDF/printer dengan tata letak Tom & Jerry 107, kertas A4, maupun printer thermal roll.
+
+7. **📱 Akses Perangkat Lain (Multi-Device Wi-Fi)**:
+   - Server lokal Python siap diakses bersamaan oleh smartphone, tablet, atau PC lain dalam jaringan Wi-Fi yang sama melalui QR Code atau URL jaringan lokal.
 
 ---
 
@@ -59,11 +59,14 @@ Aplikasi ini 100% *client-side*, aman, ringan, dan bekerja secara *offline* tanp
 ### Menggunakan Server Lokal Python (Direkomendasikan)
 Buka terminal di direktori proyek dan jalankan:
 ```bash
-python server.py
+python3 server.py
 ```
 Akses dari peramban:
-- Komputer / Laptop: `http://localhost:3000` (atau port yang aktif)
-- Smartphone / Tablet (Wi-Fi sama): `http://<IP-LOKAL-ANDA>:3000`
+- Komputer / Laptop: `http://localhost:3001`
+- Smartphone / Tablet (Wi-Fi sama): `http://<IP-LOKAL-ANDA>:3001` (dapat dilihat langsung pada modal "Akses HP").
+
+### Alternatif: Buka File Langsung
+Aplikasi juga dapat dijalankan secara langsung dengan membuka file `index.html` di peramban web modern tanpa instalasi server.
 
 ---
 
@@ -71,25 +74,20 @@ Akses dari peramban:
 
 ```
 barcode-generator/
-├── index.html                           # Antarmuka web utama (didukung Mode Multi-Sheet)
+├── index.html                       # Antarmuka web utama
 ├── css/
-│   └── style.css                        # Styling modern, print-color-adjust & layout cetak 48 label
+│   └── style.css                    # Styling modern & stylesheet cetak (@media print)
 ├── js/
-│   ├── JsBarcode.all.min.js             # Library rendering barcode offline
-│   ├── xlsx.full.min.js                 # Library parsing spreadsheet Excel offline
-│   ├── qrcode.min.js                    # Library rendering QR code offline
-│   ├── docx.umd.js                      # Library ekspor Microsoft Word (.docx)
-│   ├── id-generator.js                  # Generator nomor identitas unik & registry anti-duplikasi
-│   ├── barcode-engine.js                # Barcode & QR engine + Header Cell Renderer
-│   ├── multi-sheet-layout.js            # [BARU] Modul kanonikal Logam Mulia Multi-Sheet Layout
-│   ├── exporter.js                      # Modul ekspor PNG, PDF, DOCX, ZIP, dan Full Sheet
-│   └── app.js                           # Controller utama aplikasi & multi-sheet event handling
+│   ├── JsBarcode.all.min.js         # Library rendering barcode offline
+│   ├── xlsx.full.min.js             # Library parsing spreadsheet Excel offline
+│   ├── id-generator.js              # Generator nomor identitas unik & registry anti-duplikasi
+│   ├── barcode-engine.js            # Barcode engine (Code 128 Auto, Code 39, EAN-13)
+│   ├── exporter.js                  # Modul ekspor PNG, SVG, CSV, ZIP, dan Lembaran 30 Label
+│   └── app.js                       # Controller utama antarmuka & event listener
 ├── tests/
-│   ├── test-verifier.js                 # 40 unit test logika & verifikasi sistem
-│   └── test-multisheet.js               # Unit test spesifik multi-sheet layout & 449 ID
-├── Sample_MultiSheet_Logam_Mulia.xlsx   # [BARU] Template 6-sheet contoh 449 ID Logam Mulia
-├── Hartadinata_Abadi_Shop_Sample.xlsx     # Template data Excel toko Hartadinata (30 baris)
-├── Butik_Emas_Antam_Sample.xlsx         # Template data Excel Butik Antam (30 baris)
-├── server.py                            # Server HTTP lokal Python
-└── README.md                            # Dokumentasi penggunaan
+│   └── test-verifier.js             # 14 unit test logika & verifikasi barcode
+├── Hartadinata_Abadi_Shop_Sample.xlsx # Template data Excel toko Hartadinata (30 baris)
+├── Butik_Emas_Antam_Sample.xlsx     # Template data Excel Butik Antam (30 baris)
+├── server.py                        # Server HTTP lokal Python dengan endpoint parse Excel
+└── README.md                        # Dokumentasi penggunaan
 ```

@@ -922,13 +922,7 @@ for (let row = 0; row < tj126Rows; row++) {
 }
 console.log('✅ Presisi Geometri & Rendering Tom & Jerry No. 126 (10 x 50 mm, 48 label, jeda 5mm per 4 baris) LULUS.');
 
-// Test 40: Verifikasi Mode Cetak Logam Mulia (Multi-Sheet)
-console.log('40. Menguji Integrasi Modul MultiSheetLayout & Verifikasi Sample 449 ID...');
-require(path.join(__dirname, 'test-multisheet.js'));
-console.log('✅ Integrasi Modul Multi-Sheet Logam Mulia LULUS.');
-
-console.log('\n🎉 SEMUA 40 PENGUJIAN VERIFIKASI BERHASIL 100%!');
-
+console.log('\n🎉 SEMUA 39 PENGUJIAN VERIFIKASI BERHASIL 100%!');
 
 
 

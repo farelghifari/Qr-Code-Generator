@@ -471,12 +471,11 @@
 
       // 1. Render Detail Lines di atas
       if (numDetailLines > 0) {
+        ctx.fillStyle = lineColor;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
-        const brandColor = options.brandColor || options.groupColor || '';
         detailLines.forEach((line, idx) => {
           const isHeader = idx === 0;
-          ctx.fillStyle = (isHeader && brandColor) ? brandColor : lineColor;
           ctx.font = isHeader ? `bold ${uniformFontSize}px ${fontFamily}` : `600 ${uniformFontSize}px ${fontFamily}`;
           ctx.fillText(line, width / 2, curY, width - (effMargin * 2));
           curY += uniformFontSize + lineGap;
@@ -915,17 +914,18 @@
     const totalTextH = (totalLinesCount * uniformFontSize) + (Math.max(0, totalLinesCount - 1) * lineGap);
     let curY = effMargin + Math.max(0, Math.round((availH - totalTextH) / 2));
 
-    const brandColor = options.brandColor || options.groupColor || '';
+    ctx.fillStyle = lineColor;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+
     detailLines.forEach((line, idx) => {
       const isHeader = idx === 0;
-      ctx.fillStyle = (isHeader && brandColor) ? brandColor : lineColor;
       ctx.font = isHeader ? `bold ${Math.round(uniformFontSize * 1.15)}px ${fontFamily}` : `600 ${uniformFontSize}px ${fontFamily}`;
       ctx.fillText(line, width / 2, curY, availW);
       curY += uniformFontSize + lineGap;
     });
 
     if (showId) {
-      ctx.fillStyle = lineColor;
       ctx.font = `bold ${uniformFontSize}px monospace`;
       ctx.fillText(String(text).trim(), width / 2, curY, availW);
     }
@@ -1041,12 +1041,11 @@
 
       // 1. Gambar teks detail di atas barcode (centered)
       if (numLines > 0) {
+        ctx.fillStyle = lineColor;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
-        const brandColor = options.brandColor || options.groupColor || '';
         detailLines.forEach((line, idx) => {
           const isHeader = idx === 0;
-          ctx.fillStyle = (isHeader && brandColor) ? brandColor : lineColor;
           ctx.font = isHeader ? `bold ${uniformFontSize}px ${fontFamily}` : `600 ${uniformFontSize}px ${fontFamily}`;
           ctx.fillText(line, width / 2, curY, availW);
           curY += uniformFontSize + lineGap;
@@ -1123,13 +1122,12 @@
         const textX = isSideLeft ? (barX + totalBarW + colGap) : effMargin;
         const anchorX = isSideLeft ? textX : (textX + textZoneW);
 
+        ctx.fillStyle = lineColor;
         ctx.textAlign = isSideLeft ? 'left' : 'right';
         ctx.textBaseline = 'top';
-        const brandColor = options.brandColor || options.groupColor || '';
 
         detailLines.forEach((line, idx) => {
           const isHeader = idx === 0;
-          ctx.fillStyle = (isHeader && brandColor) ? brandColor : lineColor;
           ctx.font = isHeader ? `bold ${uniformFontSize}px ${fontFamily}` : `600 ${uniformFontSize}px ${fontFamily}`;
           ctx.fillText(line, anchorX, textY + idx * (uniformFontSize + lineGap), textZoneW);
         });
@@ -1151,65 +1149,9 @@
   }
 
   /**
-   * Render Header Label Judul Grup (Khusus Multi-Sheet Logam Mulia)
-   */
-  function renderHeaderToCanvas(canvas, title, options = {}) {
-    if (!canvas) return;
-    const {
-      targetWidth = 0,
-      targetHeight = 0,
-      color = '#DC2626',
-      backgroundColor = '#ffffff',
-      fontFamily = 'sans-serif',
-      showBorder = false,
-      margin = 4
-    } = options;
-
-    let width = targetWidth || 480;
-    let height = targetHeight || 175;
-    canvas.width = width;
-    canvas.height = height;
-
-    const ctx = canvas.getContext('2d');
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-    ctx.fillStyle = backgroundColor;
-    ctx.fillRect(0, 0, width, height);
-
-    const text = String(title || options.label || '').trim();
-    if (text) {
-      let fontSize = Math.max(9, Math.floor(height * 0.38));
-      ctx.font = `bold ${fontSize}px ${fontFamily}`;
-
-      const maxTextW = width - (margin * 4);
-      let measuredW = ctx.measureText(text).width;
-      if (measuredW > maxTextW && maxTextW > 0) {
-        fontSize = Math.max(8, Math.floor(fontSize * (maxTextW / measuredW)));
-        ctx.font = `bold ${fontSize}px ${fontFamily}`;
-      }
-
-      ctx.fillStyle = color;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(text, width / 2, height / 2);
-    }
-
-    if (showBorder) {
-      ctx.strokeStyle = '#000000';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(0.5, 0.5, width - 1, height - 1);
-    }
-
-    return canvas;
-  }
-
-  /**
    * Render Barcode / QR Code ke Canvas Element
    */
   function renderToCanvas(canvas, text, options = {}) {
-    if (options.cellType === 'header' || options.isHeader === true) {
-      return renderHeaderToCanvas(canvas, options.title || options.label || text, options);
-    }
     const fmt = (options.format || 'CODE128').toUpperCase();
     if (fmt === 'QR' || fmt === 'QRCODE') {
       return renderQRCodeToCanvas(canvas, text, options);
@@ -1714,7 +1656,6 @@
 
   return {
     renderToCanvas,
-    renderHeaderToCanvas,
     renderQRCodeToCanvas,
     renderQRCodeToSVG,
     renderTextOnlyToCanvas,
