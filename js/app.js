@@ -11,6 +11,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Template Presets Dictionary
   const TEMPLATE_PRESETS = {
+    'preset-48': {
+      name: '48 Label (3×16)',
+      paperWidthMm: 165,
+      paperHeightMm: 210,
+      labelWidthMm: 50,
+      labelHeightMm: 10,
+      cols: 3,
+      rows: 16,
+      topMarginMm: 2,
+      bottomMarginMm: 2,
+      leftMarginMm: 4,
+      rightMarginMm: 4,
+      colGapMm: 3,
+      rowGapMm: 2,
+      description: 'Kertas 16,5 × 21 cm • 3 Kolom × 16 Baris (48 Label Logam Mulia)'
+    },
+    'lm-48': {
+      name: 'Logam Mulia (3×16)',
+      paperWidthMm: 165,
+      paperHeightMm: 210,
+      labelWidthMm: 50,
+      labelHeightMm: 10,
+      cols: 3,
+      rows: 16,
+      topMarginMm: 2,
+      bottomMarginMm: 2,
+      leftMarginMm: 4,
+      rightMarginMm: 4,
+      colGapMm: 3,
+      rowGapMm: 2,
+      description: 'Kertas 16,5 × 21 cm • 3 Kolom × 16 Baris (48 Label)'
+    },
     'tj-107': {
       name: 'Tom & Jerry No. 107',
       paperWidthMm: 165,
@@ -220,7 +252,8 @@ document.addEventListener('DOMContentLoaded', () => {
     timestamp: document.getElementById('panel-mode-timestamp'),
     uuid: document.getElementById('panel-mode-uuid'),
     custom: document.getElementById('panel-mode-custom'),
-    single: document.getElementById('panel-mode-single')
+    single: document.getElementById('panel-mode-single'),
+    multisheet: document.getElementById('panel-mode-multisheet')
   };
 
   const quantityGroup = document.getElementById('quantity-control-group');
@@ -804,10 +837,15 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
-    if (mode === 'custom' || mode === 'single') {
+    if (mode === 'custom' || mode === 'single' || mode === 'multisheet') {
       quantityGroup.classList.add('hidden');
     } else {
       quantityGroup.classList.remove('hidden');
+    }
+
+    if (mode === 'multisheet') {
+      applyPresetTemplate('preset-48');
+      if (presetTemplateSelect) presetTemplateSelect.value = 'preset-48';
     }
 
     updateModePreviews();
@@ -1560,6 +1598,610 @@ document.addEventListener('DOMContentLoaded', () => {
       showToast('File Excel dibatalkan. Anda dapat mengunggah file baru atau mengetik manual.');
     });
   }
+
+  // =========================================================================
+  // --- MODE CETAK LOGAM MULIA (MULTI-SHEET) CONTROLLER ---
+  // =========================================================================
+  let activeMultiSheetResult = null;
+  let multiSheetCustomColors = (typeof MultiSheetLayout !== 'undefined')
+    ? { ...MultiSheetLayout.DEFAULT_GROUP_COLORS }
+    : {
+        'antam-1g': '#DC2626',
+        'harta-1g': '#2563EB',
+        'antam-5g': '#EA580C',
+        'harta-5g': '#0891B2',
+        'antam-10g': '#7C3AED',
+        'harta-10g': '#16A34A'
+      };
+
+  const multisheetDropzone = document.getElementById('multisheet-dropzone');
+  const multisheetFileInput = document.getElementById('multisheet-file-input');
+  const btnLoadSampleMultisheet = document.getElementById('btn-load-sample-multisheet');
+  const btnResetMsColors = document.getElementById('btn-reset-ms-colors');
+  const multisheetIncludeHeaderChk = document.getElementById('multisheet-include-header-chk');
+  const multisheetSummaryContainer = document.getElementById('multisheet-summary-container');
+  const msSummaryFilename = document.getElementById('ms-summary-filename');
+  const msSummaryStatusBadge = document.getElementById('ms-summary-status-badge');
+  const msGroupsListContainer = document.getElementById('ms-groups-list-container');
+  const msKpiTotalIds = document.getElementById('ms-kpi-total-ids');
+  const msKpiTotalCells = document.getElementById('ms-kpi-total-cells');
+  const msKpiTotalSheets = document.getElementById('ms-kpi-total-sheets');
+  const msKpiEmptyCells = document.getElementById('ms-kpi-empty-cells');
+  const msWarningsBox = document.getElementById('ms-warnings-box');
+  const btnMultisheetGenerate = document.getElementById('btn-multisheet-generate');
+  const btnMultisheetQuickPreview = document.getElementById('btn-multisheet-quick-preview');
+  const btnMultisheetQuickPrint = document.getElementById('btn-multisheet-quick-print');
+
+  // Preview Modal Elements
+  const msPreviewModal = document.getElementById('multisheet-preview-modal');
+  const btnCloseMsPreviewModal = document.getElementById('btn-close-ms-preview-modal');
+  const btnMsModalClose = document.getElementById('btn-ms-modal-close');
+  const btnMsPreviewFirst = document.getElementById('btn-ms-preview-first');
+  const btnMsPreviewLast = document.getElementById('btn-ms-preview-last');
+  const msPreviewSheetSelect = document.getElementById('ms-preview-sheet-select');
+  const msPreviewSheetTitle = document.getElementById('ms-preview-sheet-title');
+  const msPreviewSheetInfo = document.getElementById('ms-preview-sheet-info');
+  const msPreviewExactCanvas = document.getElementById('ms-preview-exact-canvas');
+  const btnMsModalDownloadPng = document.getElementById('btn-ms-modal-download-png');
+  const btnMsModalDownloadAllPdf = document.getElementById('btn-ms-modal-download-all-pdf');
+
+  // Color Pickers Mapping
+  const msColorInputMap = {
+    'antam-1g': document.getElementById('ms-color-antam-1g'),
+    'harta-1g': document.getElementById('ms-color-harta-1g'),
+    'antam-5g': document.getElementById('ms-color-antam-5g'),
+    'harta-5g': document.getElementById('ms-color-harta-5g'),
+    'antam-10g': document.getElementById('ms-color-antam-10g'),
+    'harta-10g': document.getElementById('ms-color-harta-10g')
+  };
+
+  // Setup color inputs event listeners
+  Object.entries(msColorInputMap).forEach(([groupKey, inputEl]) => {
+    if (inputEl) {
+      inputEl.addEventListener('input', (e) => {
+        multiSheetCustomColors[groupKey] = e.target.value;
+        if (activeMultiSheetResult && activeMultiSheetResult.rawWorkbook) {
+          reprocessActiveMultiSheet();
+        }
+      });
+    }
+  });
+
+  if (btnResetMsColors) {
+    btnResetMsColors.addEventListener('click', () => {
+      const def = (typeof MultiSheetLayout !== 'undefined') ? MultiSheetLayout.DEFAULT_GROUP_COLORS : {
+        'antam-1g': '#DC2626',
+        'harta-1g': '#2563EB',
+        'antam-5g': '#EA580C',
+        'harta-5g': '#0891B2',
+        'antam-10g': '#7C3AED',
+        'harta-10g': '#16A34A'
+      };
+      multiSheetCustomColors = { ...def };
+      Object.entries(msColorInputMap).forEach(([key, inputEl]) => {
+        if (inputEl && def[key]) inputEl.value = def[key];
+      });
+      if (activeMultiSheetResult && activeMultiSheetResult.rawWorkbook) {
+        reprocessActiveMultiSheet();
+      }
+      showToast('Warna grup dikembalikan ke pengaturan default.');
+    });
+  }
+
+  if (multisheetIncludeHeaderChk) {
+    multisheetIncludeHeaderChk.addEventListener('change', () => {
+      if (activeMultiSheetResult && activeMultiSheetResult.rawWorkbook) {
+        reprocessActiveMultiSheet();
+      }
+    });
+  }
+
+  function reprocessActiveMultiSheet() {
+    if (!activeMultiSheetResult || !activeMultiSheetResult.rawWorkbook) return;
+    const includeH = multisheetIncludeHeaderChk ? multisheetIncludeHeaderChk.checked : true;
+    const proc = MultiSheetLayout.processMultiSheetWorkbook(activeMultiSheetResult.rawWorkbook, {
+      includeHeaderCell: includeH,
+      colors: multiSheetCustomColors
+    });
+    activeMultiSheetResult = {
+      ...proc,
+      filename: activeMultiSheetResult.filename,
+      rawWorkbook: activeMultiSheetResult.rawWorkbook
+    };
+    renderMultiSheetSummaryUI(activeMultiSheetResult);
+  }
+
+  function handleMultiSheetFile(file) {
+    if (!file) return;
+    if (typeof XLSX === 'undefined' || typeof MultiSheetLayout === 'undefined') {
+      showToast('Library XLSX atau MultiSheetLayout belum siap.', 'error');
+      return;
+    }
+
+    loadingOverlay.classList.add('active');
+    loadingText.textContent = `Membaca file multi-sheet ${file.name}...`;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const includeH = multisheetIncludeHeaderChk ? multisheetIncludeHeaderChk.checked : true;
+        const result = MultiSheetLayout.processMultiSheetWorkbook(workbook, {
+          includeHeaderCell: includeH,
+          colors: multiSheetCustomColors
+        });
+
+        activeMultiSheetResult = {
+          ...result,
+          filename: file.name,
+          rawWorkbook: workbook
+        };
+
+        loadingOverlay.classList.remove('active');
+        renderMultiSheetSummaryUI(activeMultiSheetResult);
+        showToast(`Berhasil membaca file Excel: ${result.totalIds} ID ditemukan!`, 'success');
+      } catch (err) {
+        console.error('Gagal membaca multi-sheet workbook:', err);
+        loadingOverlay.classList.remove('active');
+        showToast('Gagal memproses file Excel: ' + err.message, 'error');
+      }
+    };
+    reader.onerror = () => {
+      loadingOverlay.classList.remove('active');
+      showToast('Gagal membuka file Excel.', 'error');
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  function renderMultiSheetSummaryUI(res) {
+    if (!res || !multisheetSummaryContainer) return;
+    multisheetSummaryContainer.classList.remove('hidden');
+
+    if (msSummaryFilename) msSummaryFilename.textContent = res.filename || 'File Multi-Sheet';
+    if (msSummaryStatusBadge) {
+      const activeGrpCount = res.groups.filter(g => g.ids.length > 0).length;
+      msSummaryStatusBadge.textContent = `${activeGrpCount} dari 6 Grup Terisi`;
+    }
+
+    if (msGroupsListContainer) {
+      msGroupsListContainer.innerHTML = '';
+      res.groups.forEach(g => {
+        const itemRow = document.createElement('div');
+        itemRow.className = 'flex items-center justify-between p-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs';
+        const colorDot = `<span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: ${g.color};"></span>`;
+        const sheetBadge = g.sheetName ? `<span class="text-[10px] text-slate-400 font-mono">(${escapeHtml(g.sheetName)})</span>` : '';
+        const idBadge = g.ids.length > 0
+          ? `<span class="font-bold text-slate-800 bg-white px-2 py-0.5 rounded border border-slate-200 text-[11px]">${g.ids.length} ID</span>`
+          : `<span class="text-rose-500 font-bold text-[10px]">Kosong (Dilewati)</span>`;
+
+        itemRow.innerHTML = `
+          <div class="flex items-center gap-1.5 truncate">
+            ${colorDot}
+            <span class="font-bold text-slate-800 text-[11px]">${escapeHtml(g.title)}</span>
+            ${sheetBadge}
+          </div>
+          <div class="shrink-0">${idBadge}</div>
+        `;
+        msGroupsListContainer.appendChild(itemRow);
+      });
+    }
+
+    if (msKpiTotalIds) msKpiTotalIds.textContent = res.totalIds;
+    if (msKpiTotalCells) msKpiTotalCells.textContent = res.totalCells;
+    if (msKpiTotalSheets) msKpiTotalSheets.textContent = `${res.sheetsNeeded} Lembar`;
+    if (msKpiEmptyCells) {
+      msKpiEmptyCells.textContent = `${res.emptyCellsRemaining} sel kosong di lembar terakhir`;
+    }
+
+    if (msWarningsBox) {
+      const allWarnings = [];
+      if (res.duplicateWarnings && res.duplicateWarnings.length > 0) {
+        allWarnings.push(...res.duplicateWarnings);
+      }
+      if (res.emptySheetWarnings && res.emptySheetWarnings.length > 0) {
+        allWarnings.push(...res.emptySheetWarnings);
+      }
+
+      if (allWarnings.length > 0) {
+        msWarningsBox.classList.remove('hidden');
+        msWarningsBox.innerHTML = `
+          <div class="font-bold text-rose-900 mb-0.5">⚠️ Catatan & Peringatan:</div>
+          <ul class="list-disc list-inside space-y-0.5">
+            ${allWarnings.map(w => `<li>${escapeHtml(w)}</li>`).join('')}
+          </ul>
+        `;
+      } else {
+        msWarningsBox.classList.add('hidden');
+      }
+    }
+  }
+
+  // Load Sample Button
+  async function loadMultiSheetSample() {
+    loadingOverlay.classList.add('active');
+    loadingText.textContent = 'Memuat data contoh Logam Mulia (449 ID)...';
+
+    try {
+      const resp = await fetch('/Sample_MultiSheet_Logam_Mulia.xlsx', { cache: 'no-cache' });
+      if (resp.ok) {
+        const buf = await resp.arrayBuffer();
+        const data = new Uint8Array(buf);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const includeH = multisheetIncludeHeaderChk ? multisheetIncludeHeaderChk.checked : true;
+        const result = MultiSheetLayout.processMultiSheetWorkbook(workbook, {
+          includeHeaderCell: includeH,
+          colors: multiSheetCustomColors
+        });
+        activeMultiSheetResult = {
+          ...result,
+          filename: 'Sample_MultiSheet_Logam_Mulia.xlsx',
+          rawWorkbook: workbook
+        };
+        loadingOverlay.classList.remove('active');
+        renderMultiSheetSummaryUI(activeMultiSheetResult);
+        showToast('Berhasil memuat data contoh 449 ID Logam Mulia (6 Sheet)!', 'success');
+        return;
+      }
+    } catch (err) {
+      console.warn('Fetch sample file error, creating in-memory sample fallback...', err);
+    }
+
+    // Fallback in-memory jika fetch gagal
+    try {
+      const wb = XLSX.utils.book_new();
+      const counts = [217, 24, 6, 177, 20, 5];
+      const names = ['Antam 1g', 'Antam 5g', 'Antam 10g', 'Harta 1g', 'Harta 5g', 'Harta 10g'];
+      const prefixes = ['ANT01', 'ANT05', 'ANT10', 'HRT01', 'HRT05', 'HRT10'];
+
+      names.forEach((name, idx) => {
+        const rows = [['Nomor Barcode']];
+        for (let i = 1; i <= counts[idx]; i++) {
+          rows.push([`${prefixes[idx]}-${String(i).padStart(4, '0')}`]);
+        }
+        const ws = XLSX.utils.aoa_to_sheet(rows);
+        XLSX.utils.book_append_sheet(wb, ws, name);
+      });
+
+      const includeH = multisheetIncludeHeaderChk ? multisheetIncludeHeaderChk.checked : true;
+      const result = MultiSheetLayout.processMultiSheetWorkbook(wb, {
+        includeHeaderCell: includeH,
+        colors: multiSheetCustomColors
+      });
+      activeMultiSheetResult = {
+        ...result,
+        filename: 'Sample_MultiSheet_Logam_Mulia.xlsx',
+        rawWorkbook: wb
+      };
+      loadingOverlay.classList.remove('active');
+      renderMultiSheetSummaryUI(activeMultiSheetResult);
+      showToast('Berhasil memuat data contoh 449 ID Logam Mulia (6 Sheet)!', 'success');
+    } catch (e) {
+      loadingOverlay.classList.remove('active');
+      showToast('Gagal membuat data contoh: ' + e.message, 'error');
+    }
+  }
+
+  if (btnLoadSampleMultisheet) {
+    btnLoadSampleMultisheet.addEventListener('click', loadMultiSheetSample);
+  }
+
+  // Dropzone & File Input Listeners for Multi-Sheet
+  if (multisheetFileInput) {
+    multisheetFileInput.addEventListener('click', () => {
+      multisheetFileInput.value = '';
+    });
+    multisheetFileInput.addEventListener('change', (e) => {
+      if (e.target.files && e.target.files.length > 0) {
+        handleMultiSheetFile(e.target.files[0]);
+      }
+    });
+  }
+
+  if (multisheetDropzone) {
+    multisheetDropzone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      multisheetDropzone.classList.add('border-amber-500', 'bg-amber-100/70');
+    });
+    multisheetDropzone.addEventListener('dragleave', (e) => {
+      e.preventDefault();
+      multisheetDropzone.classList.remove('border-amber-500', 'bg-amber-100/70');
+    });
+    multisheetDropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      multisheetDropzone.classList.remove('border-amber-500', 'bg-amber-100/70');
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        const file = e.dataTransfer.files[0];
+        const fn = file.name.toLowerCase();
+        if (fn.endsWith('.xlsx') || fn.endsWith('.xls')) {
+          handleMultiSheetFile(file);
+        } else {
+          showToast('Harap upload file Excel format .xlsx atau .xls', 'error');
+        }
+      }
+    });
+  }
+
+  // Generate All Multi-Sheet Labels to Studio Workspace
+  function generateMultiSheetItemsToStudio() {
+    if (!activeMultiSheetResult || !activeMultiSheetResult.allCells || activeMultiSheetResult.allCells.length === 0) {
+      showToast('Belum ada file Excel multi-sheet yang dimuat.', 'error');
+      return;
+    }
+
+    const nowFormatted = new Date().toLocaleString('id-ID', {
+      day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit'
+    });
+
+    const chosenFormat = currentCodeType === 'NONE' ? 'NONE' : (currentCodeType === 'QR' ? 'QR' : (barcodeFormat ? barcodeFormat.value : 'CODE128'));
+    const finalBatchName = `Logam Mulia Multi-Sheet (${activeMultiSheetResult.totalIds} ID)`;
+
+    let targetBatch = {
+      id: 'batch_ms_' + Date.now(),
+      name: finalBatchName,
+      createdAt: nowFormatted,
+      format: chosenFormat
+    };
+    batches.push(targetBatch);
+    saveBatchesToStorage();
+
+    const newItems = activeMultiSheetResult.allCells.map(cell => {
+      if (cell.cellType === 'header') {
+        return {
+          id: `HEADER_${cell.groupKey}`,
+          title: cell.title,
+          label: cell.title,
+          cellType: 'header',
+          isHeader: true,
+          groupKey: cell.groupKey,
+          group: cell.groupName,
+          groupColor: cell.groupColor,
+          brandColor: cell.groupColor,
+          brand: cell.brand,
+          gramasi: cell.gramasi,
+          vault: '', lemari: '', laci: '', kotak: '',
+          extraRows: [],
+          batchId: targetBatch.id,
+          batchName: targetBatch.name,
+          format: chosenFormat,
+          status: 'pending',
+          createdAt: nowFormatted,
+          timestamp: Date.now()
+        };
+      } else {
+        return {
+          id: cell.id,
+          title: cell.id,
+          label: `${cell.brand} ${cell.gramasi}`.trim(),
+          cellType: 'data',
+          groupKey: cell.groupKey,
+          group: cell.groupName,
+          groupColor: cell.groupColor,
+          brandColor: cell.groupColor,
+          brand: cell.brand,
+          gramasi: cell.gramasi,
+          vault: '', lemari: '', laci: '', kotak: '',
+          extraRows: [],
+          batchId: targetBatch.id,
+          batchName: targetBatch.name,
+          format: chosenFormat,
+          status: 'pending',
+          createdAt: nowFormatted,
+          timestamp: Date.now()
+        };
+      }
+    });
+
+    // Registrasikan ID non-header ke registry anti-duplikasi
+    const pureIds = newItems.filter(it => it.cellType !== 'header').map(it => it.id);
+    if (pureIds.length) {
+      IdGenerator.registry.addBatch(pureIds);
+    }
+
+    generatedItems.push(...newItems);
+    activeFolderId = targetBatch.id;
+    saveItemsToStorage();
+
+    // Pastikan template 48 Label (3x16) aktif
+    applyPresetTemplate('preset-48');
+    if (presetTemplateSelect) presetTemplateSelect.value = 'preset-48';
+
+    updateFilteredItems();
+    renderAllViews();
+
+    showToast(`Berhasil memasukkan ${newItems.length} sel (${pureIds.length} label ID) ke Lembar Cetak!`, 'success');
+
+    // Scroll ke bagian preview grid agar user langsung melihat hasilnya
+    const previewPanel = document.getElementById('preview-panel') || document.getElementById('top-action-bar');
+    if (previewPanel) {
+      previewPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
+
+  if (btnMultisheetGenerate) {
+    btnMultisheetGenerate.addEventListener('click', generateMultiSheetItemsToStudio);
+  }
+
+  // --- MULTI-SHEET EXACT PREVIEW MODAL LOGIC ---
+  let msPreviewCurrentSheet = 0;
+
+  function openMultiSheetPreviewModal() {
+    if (!activeMultiSheetResult || !activeMultiSheetResult.allCells || activeMultiSheetResult.allCells.length === 0) {
+      showToast('Harap muat file Excel multi-sheet terlebih dahulu.', 'warning');
+      return;
+    }
+
+    if (!msPreviewModal) return;
+    msPreviewModal.classList.remove('hidden');
+    msPreviewModal.classList.add('flex');
+
+    // Populate dropdown lembar
+    if (msPreviewSheetSelect) {
+      msPreviewSheetSelect.innerHTML = '';
+      const totalSheets = activeMultiSheetResult.sheetsNeeded || 1;
+      for (let s = 0; s < totalSheets; s++) {
+        const opt = document.createElement('option');
+        opt.value = s;
+        opt.textContent = `Lembar ${s + 1} of ${totalSheets}`;
+        msPreviewSheetSelect.appendChild(opt);
+      }
+      msPreviewSheetSelect.value = 0;
+    }
+
+    renderMultiSheetExactCanvas(0);
+  }
+
+  function closeMultiSheetPreviewModal() {
+    if (!msPreviewModal) return;
+    msPreviewModal.classList.add('hidden');
+    msPreviewModal.classList.remove('flex');
+  }
+
+  async function renderMultiSheetExactCanvas(sheetIndex) {
+    if (!activeMultiSheetResult || !msPreviewExactCanvas) return;
+    msPreviewCurrentSheet = sheetIndex;
+
+    const renderOpts = {
+      ...getRenderOptions(),
+      cols: 3,
+      rows: 16,
+      paperWidthMm: 165,
+      paperHeightMm: 210,
+      labelWidthMm: 50,
+      labelHeightMm: 10,
+      topMarginMm: 2,
+      bottomMarginMm: 2,
+      leftMarginMm: 4,
+      rightMarginMm: 4,
+      colGapMm: 3,
+      rowGapMm: 2
+    };
+
+    const sheetCap = 48;
+    const totalSheets = activeMultiSheetResult.sheetsNeeded || 1;
+    const startIdx = sheetIndex * sheetCap;
+    const endIdx = Math.min(startIdx + sheetCap, activeMultiSheetResult.allCells.length);
+    const filledCount = Math.max(0, endIdx - startIdx);
+    const emptyCount = sheetCap - filledCount;
+
+    if (msPreviewSheetTitle) {
+      msPreviewSheetTitle.textContent = (sheetIndex === 0)
+        ? `Lembar 1 (Awal) • ${filledCount} Sel Terisi Penuh`
+        : (sheetIndex === totalSheets - 1)
+          ? `Lembar ${sheetIndex + 1} (Lembar Terakhir) • ${filledCount} Sel Terisi, ${emptyCount} Sel Kosong`
+          : `Lembar ${sheetIndex + 1} dari ${totalSheets} • ${filledCount} Sel Terisi`;
+    }
+
+    if (msPreviewSheetInfo) {
+      msPreviewSheetInfo.textContent = `Kapasitas: 48 Label (3×16) • Resolusi Cetak Presisi`;
+    }
+
+    try {
+      await BarcodeExporter.renderSheetToCanvas(
+        activeMultiSheetResult.allCells,
+        renderOpts,
+        sheetIndex,
+        true,
+        msPreviewExactCanvas
+      );
+    } catch (err) {
+      console.error('Gagal render canvas pratinjau lembar:', err);
+    }
+  }
+
+  if (btnMultisheetQuickPreview) {
+    btnMultisheetQuickPreview.addEventListener('click', openMultiSheetPreviewModal);
+  }
+  if (btnCloseMsPreviewModal) {
+    btnCloseMsPreviewModal.addEventListener('click', closeMultiSheetPreviewModal);
+  }
+  if (btnMsModalClose) {
+    btnMsModalClose.addEventListener('click', closeMultiSheetPreviewModal);
+  }
+
+  if (msPreviewSheetSelect) {
+    msPreviewSheetSelect.addEventListener('change', (e) => {
+      renderMultiSheetExactCanvas(parseInt(e.target.value, 10) || 0);
+    });
+  }
+
+  if (btnMsPreviewFirst) {
+    btnMsPreviewFirst.addEventListener('click', () => {
+      if (msPreviewSheetSelect) msPreviewSheetSelect.value = 0;
+      renderMultiSheetExactCanvas(0);
+    });
+  }
+
+  if (btnMsPreviewLast) {
+    btnMsPreviewLast.addEventListener('click', () => {
+      if (!activeMultiSheetResult) return;
+      const last = (activeMultiSheetResult.sheetsNeeded || 1) - 1;
+      if (msPreviewSheetSelect) msPreviewSheetSelect.value = last;
+      renderMultiSheetExactCanvas(last);
+    });
+  }
+
+  if (btnMsModalDownloadPng) {
+    btnMsModalDownloadPng.addEventListener('click', async () => {
+      if (!activeMultiSheetResult) return;
+      const renderOpts = {
+        ...getRenderOptions(),
+        cols: 3, rows: 16,
+        paperWidthMm: 165, paperHeightMm: 210,
+        labelWidthMm: 50, labelHeightMm: 10,
+        topMarginMm: 2, bottomMarginMm: 2, leftMarginMm: 4, rightMarginMm: 4,
+        colGapMm: 3, rowGapMm: 2
+      };
+      await BarcodeExporter.downloadFullSheetPNG(
+        activeMultiSheetResult.allCells,
+        renderOpts,
+        msPreviewCurrentSheet,
+        true,
+        `Lembar_Logam_Mulia_Halaman_${msPreviewCurrentSheet + 1}.png`
+      );
+      showToast(`Gambar Lembar ${msPreviewCurrentSheet + 1} berhasil diunduh!`, 'success');
+    });
+  }
+
+  if (btnMsModalDownloadAllPdf) {
+    btnMsModalDownloadAllPdf.addEventListener('click', async () => {
+      if (!activeMultiSheetResult) return;
+      const renderOpts = {
+        ...getRenderOptions(),
+        cols: 3, rows: 16,
+        paperWidthMm: 165, paperHeightMm: 210,
+        labelWidthMm: 50, labelHeightMm: 10,
+        topMarginMm: 2, bottomMarginMm: 2, leftMarginMm: 4, rightMarginMm: 4,
+        colGapMm: 3, rowGapMm: 2
+      };
+      loadingOverlay.classList.add('active');
+      loadingText.textContent = 'Menyusun dokumen PDF semua lembar Logam Mulia...';
+      try {
+        await BarcodeExporter.downloadFullSheetPDF(
+          activeMultiSheetResult.allCells,
+          renderOpts,
+          'all',
+          true
+        );
+        showToast('Dokumen PDF semua lembar berhasil diunduh!', 'success');
+      } catch (err) {
+        showToast('Gagal membuat PDF: ' + err.message, 'error');
+      } finally {
+        loadingOverlay.classList.remove('active');
+      }
+    });
+  }
+
+  if (btnMultisheetQuickPrint) {
+    btnMultisheetQuickPrint.addEventListener('click', () => {
+      generateMultiSheetItemsToStudio();
+      setTimeout(() => {
+        if (btnOpenPrintModal) btnOpenPrintModal.click();
+      }, 300);
+    });
+  }
+  // =========================================================================
 
   if (excelHasHeader) {
     excelHasHeader.addEventListener('change', () => {
@@ -2536,9 +3178,15 @@ document.addEventListener('DOMContentLoaded', () => {
     card.className = 'barcode-item-card group';
 
     const isPrinted = item.status === 'printed';
+    const isHeaderCell = item.cellType === 'header';
+
     const statusBadgeHtml = isPrinted
       ? `<button type="button" class="btn-toggle-status-card text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition" title="Klik untuk ubah status">✓ Dicetak</button>`
       : `<button type="button" class="btn-toggle-status-card text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition" title="Klik untuk ubah status">⏳ Belum Dicetak</button>`;
+
+    const idBadgeHtml = isHeaderCell
+      ? `<span class="text-white font-bold px-2 py-0.5 rounded text-[11px] truncate max-w-[170px]" style="background-color: ${item.groupColor || '#DC2626'}">🏷️ ${escapeHtml(item.title || item.label || 'Header')}</span>`
+      : `<span class="bg-indigo-50 text-indigo-700 font-mono px-2 py-0.5 rounded text-[11px] font-medium tracking-wide truncate max-w-[130px]">${escapeHtml(item.id)}</span>`;
 
     // Header Card
     const headerDiv = document.createElement('div');
@@ -2546,7 +3194,7 @@ document.addEventListener('DOMContentLoaded', () => {
     headerDiv.innerHTML = `
       <div class="flex items-center gap-1.5 truncate">
         <span class="font-semibold text-slate-400">#${index + 1}</span>
-        <span class="bg-indigo-50 text-indigo-700 font-mono px-2 py-0.5 rounded text-[11px] font-medium tracking-wide truncate max-w-[130px]">${escapeHtml(item.id)}</span>
+        ${idBadgeHtml}
         <span class="bg-amber-100 text-amber-900 border border-amber-300 text-[9px] font-bold px-1.5 py-0.2 rounded shrink-0">${renderOpts.labelWidthMm}×${renderOpts.labelHeightMm}mm</span>
       </div>
       <div class="flex items-center gap-1 shrink-0">
@@ -2585,9 +3233,11 @@ document.addEventListener('DOMContentLoaded', () => {
         targetWidth: targetW,
         targetHeight: targetH,
         format: item.format || renderOpts.format,
-        topLabel: item.label || renderOpts.topLabel
+        topLabel: item.label || renderOpts.topLabel,
+        groupColor: item.groupColor || item.brandColor,
+        brandColor: item.brandColor || item.groupColor
       };
-      BarcodeEngine.renderToCanvas(canvas, item.id, mergedOpts);
+      BarcodeEngine.renderToCanvas(canvas, isHeaderCell ? item : item.id, mergedOpts);
     } catch (err) {
       console.error('Gagal merender canvas untuk ID:', item.id, err);
     }
@@ -2727,6 +3377,24 @@ document.addEventListener('DOMContentLoaded', () => {
         extraChipsHtml = `<span class="text-slate-400 text-[11px]">-</span>`;
       }
 
+      const isHeaderCell = item.cellType === 'header';
+      const idColHtml = isHeaderCell
+        ? `<div class="flex items-center gap-1.5">
+            <span class="text-white font-bold px-2 py-0.5 rounded text-[11px] truncate max-w-[170px]" style="background-color: ${item.groupColor || '#DC2626'}">🏷️ ${escapeHtml(item.title || item.label || 'Header')}</span>
+           </div>`
+        : `<div class="flex items-center gap-1.5">
+            <span class="font-mono font-bold text-slate-800">${escapeHtml(item.id)}</span>
+            <button type="button" class="btn-table-copy text-slate-400 hover:text-indigo-600 transition" title="Salin ID">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+            </button>
+          </div>`;
+
+      const formatColHtml = isHeaderCell
+        ? `<span class="bg-amber-100 text-amber-900 text-[10px] font-bold px-2 py-0.5 rounded border border-amber-300">HEADER</span>`
+        : `<span class="bg-indigo-50 text-indigo-700 text-[10px] font-bold px-2 py-0.5 rounded border border-indigo-200">${escapeHtml(item.format || 'QR')}</span>`;
+
       tr.innerHTML = `
         <td class="p-3 text-center">
           <input type="checkbox" class="table-row-checkbox rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer" data-id="${escapeHtml(item.id)}" ${isChecked ? 'checked' : ''}>
@@ -2735,14 +3403,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <canvas class="table-thumb-canvas inline-block border border-slate-200 rounded p-1 bg-white" data-id="${escapeHtml(item.id)}" style="max-height: 38px; max-width: 70px;"></canvas>
         </td>
         <td class="p-3">
-          <div class="flex items-center gap-1.5">
-            <span class="font-mono font-bold text-slate-800">${escapeHtml(item.id)}</span>
-            <button type="button" class="btn-table-copy text-slate-400 hover:text-indigo-600 transition" title="Salin ID">
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-              </svg>
-            </button>
-          </div>
+          ${idColHtml}
         </td>
         <td class="p-3">
           ${brandGramasiHtml}
@@ -2754,7 +3415,7 @@ document.addEventListener('DOMContentLoaded', () => {
           ${extraChipsHtml}
         </td>
         <td class="p-3 text-center">
-          <span class="bg-indigo-50 text-indigo-700 text-[10px] font-bold px-2 py-0.5 rounded border border-indigo-200">${escapeHtml(item.format || 'QR')}</span>
+          ${formatColHtml}
         </td>
         <td class="p-3">
           <span class="bg-slate-100 text-slate-800 text-[10px] font-semibold px-2 py-0.5 rounded-full truncate max-w-[100px] inline-block">${escapeHtml(item.batchName || 'Default')}</span>
@@ -2788,13 +3449,17 @@ document.addEventListener('DOMContentLoaded', () => {
       if (thumbCanvas) {
         try {
           const itemFmt = item.format || renderOpts.format;
-          BarcodeEngine.renderToCanvas(thumbCanvas, item.id, {
+          BarcodeEngine.renderToCanvas(thumbCanvas, isHeaderCell ? item : item.id, {
+            ...renderOpts,
+            ...item,
             format: itemFmt,
             barWidth: 1,
             height: 24,
             margin: 2,
             displayValue: false,
-            layoutPosition: 'side-left'
+            layoutPosition: 'side-left',
+            groupColor: item.groupColor || item.brandColor,
+            brandColor: item.brandColor || item.groupColor
           });
         } catch (thumbErr) {
           console.warn('Gagal merender thumbnail tabel:', thumbErr);
@@ -3931,6 +4596,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const isPrintAll = printScope && printScope.value === 'all';
 
     document.body.classList.remove(
+      'print-mode-preset-48',
+      'print-mode-lm-48',
       'print-mode-tj-107',
       'print-mode-tj-126',
       'print-mode-a4-3col',

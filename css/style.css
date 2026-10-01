@@ -379,11 +379,18 @@ body {
    Khusus tata letak cetak Label Stiker A4 & Thermal Roll
    =================================================== */
 @media print {
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
   body {
     background: #ffffff !important;
     color: #000000 !important;
     padding: 0 !important;
     margin: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 
   /* Sembunyikan elemen non-cetak */
@@ -542,14 +549,18 @@ body {
      Jarak Antar Label: Horizontal 3mm, Vertikal 2mm
      Jeda Kelompok: Setiap 4 baris label ada jarak 5mm (tambahan 3mm di atas row gap 2mm)
      ========================================================= */
-  body.print-mode-tj-126 {
+  body.print-mode-tj-126,
+  body.print-mode-preset-48,
+  body.print-mode-lm-48 {
     width: 165mm !important;
     height: 210mm !important;
     margin: 0 !important;
     padding: 0 !important;
   }
 
-  body.print-mode-tj-126 #barcode-grid {
+  body.print-mode-tj-126 #barcode-grid,
+  body.print-mode-preset-48 #barcode-grid,
+  body.print-mode-lm-48 #barcode-grid {
     display: grid !important;
     grid-template-columns: repeat(3, 50mm) !important;
     grid-auto-rows: 10mm !important;
@@ -567,7 +578,9 @@ body {
     page-break-inside: auto;
   }
 
-  body.print-mode-tj-126 .print-page-sheet {
+  body.print-mode-tj-126 .print-page-sheet,
+  body.print-mode-preset-48 .print-page-sheet,
+  body.print-mode-lm-48 .print-page-sheet {
     width: 165mm !important;
     height: 210mm !important;
     max-height: 210mm !important;
@@ -588,7 +601,9 @@ body {
     break-after: page !important;
   }
 
-  body.print-mode-tj-126 .print-page-sheet:last-child {
+  body.print-mode-tj-126 .print-page-sheet:last-child,
+  body.print-mode-preset-48 .print-page-sheet:last-child,
+  body.print-mode-lm-48 .print-page-sheet:last-child {
     page-break-after: avoid !important;
     break-after: avoid !important;
   }
@@ -606,12 +621,16 @@ body {
     margin-bottom: 3mm !important;
   }
 
-  body.print-mode-tj-126 .barcode-item-card:nth-child(48n) {
+  body.print-mode-tj-126 .barcode-item-card:nth-child(48n),
+  body.print-mode-preset-48 .barcode-item-card:nth-child(48n),
+  body.print-mode-lm-48 .barcode-item-card:nth-child(48n) {
     page-break-after: always !important;
     break-after: page !important;
   }
 
-  body.print-mode-tj-126 .barcode-item-card {
+  body.print-mode-tj-126 .barcode-item-card,
+  body.print-mode-preset-48 .barcode-item-card,
+  body.print-mode-lm-48 .barcode-item-card {
     width: 50mm !important;
     height: 10mm !important;
     max-width: 50mm !important;
@@ -630,11 +649,15 @@ body {
     overflow: hidden !important;
   }
 
-  body.print-mode-tj-126.print-show-borders .barcode-item-card {
+  body.print-mode-tj-126.print-show-borders .barcode-item-card,
+  body.print-mode-preset-48.print-show-borders .barcode-item-card,
+  body.print-mode-lm-48.print-show-borders .barcode-item-card {
     border: 0.5px dashed #cbd5e1 !important;
   }
 
-  body.print-mode-tj-126 .barcode-item-card canvas {
+  body.print-mode-tj-126 .barcode-item-card canvas,
+  body.print-mode-preset-48 .barcode-item-card canvas,
+  body.print-mode-lm-48 .barcode-item-card canvas {
     max-width: 49.6mm !important;
     max-height: 9.6mm !important;
     width: 100% !important;

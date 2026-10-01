@@ -521,31 +521,56 @@
       // Render barcode ke canvas sementara
       const tempCanvas = document.createElement('canvas');
       if (engine) {
-        engine.renderToCanvas(tempCanvas, id, {
-          ...barcodeRenderOptions,
-          format: itemFormat,
-          topLabel: itemObj.label || barcodeRenderOptions.topLabel || '',
-          labelLines: itemObj.labelLines || barcodeRenderOptions.labelLines || null,
-          brand: itemObj.brand || barcodeRenderOptions.brand || '',
-          gramasi: itemObj.gramasi || barcodeRenderOptions.gramasi || '',
-          vault: itemObj.vault || barcodeRenderOptions.vault || '',
-          lemari: itemObj.lemari || barcodeRenderOptions.lemari || '',
-          laci: itemObj.laci || barcodeRenderOptions.laci || '',
-          kotak: itemObj.kotak || barcodeRenderOptions.kotak || '',
-          extraRows: itemObj.extraRows || barcodeRenderOptions.extraRows || [],
-          targetWidth: (isQR || itemFormat === 'NONE' || Boolean(barcodeRenderOptions.layoutPosition)) ? labelW : 0,
-          targetHeight: (isQR || itemFormat === 'NONE' || Boolean(barcodeRenderOptions.layoutPosition)) ? labelH : 0,
-          barWidth: barcodeRenderOptions.barWidth || 2,
-          height: barcodeRenderOptions.height || 60,
-          margin: barcodeRenderOptions.margin || 8,
-          fontSize: barcodeRenderOptions.fontSize || 14,
-          fontSizeTitle: barcodeRenderOptions.fontSizeTitle || 12,
-          fontSizeDetails: barcodeRenderOptions.fontSizeDetails || 10,
-          fontSizeId: barcodeRenderOptions.fontSizeId || 11,
-          showBorder: Boolean(showBorders),
-          lineColor: '#000000',
-          backgroundColor: '#ffffff'
-        });
+        if (itemObj.cellType === 'header' || itemObj.isHeader) {
+          if (typeof engine.renderHeaderToCanvas === 'function') {
+            engine.renderHeaderToCanvas(tempCanvas, itemObj.title || itemObj.label || id, {
+              targetWidth: labelW,
+              targetHeight: labelH,
+              color: itemObj.color || barcodeRenderOptions.color || '#DC2626',
+              backgroundColor: '#ffffff',
+              showBorder: Boolean(showBorders)
+            });
+          } else {
+            engine.renderToCanvas(tempCanvas, id, {
+              ...barcodeRenderOptions,
+              ...itemObj,
+              isHeader: true,
+              cellType: 'header',
+              targetWidth: labelW,
+              targetHeight: labelH,
+              color: itemObj.color || '#DC2626',
+              showBorder: Boolean(showBorders)
+            });
+          }
+        } else {
+          engine.renderToCanvas(tempCanvas, id, {
+            ...barcodeRenderOptions,
+            ...itemObj,
+            format: itemFormat,
+            brandColor: itemObj.groupColor || '',
+            lineColor: '#000000',
+            topLabel: itemObj.label || barcodeRenderOptions.topLabel || '',
+            labelLines: itemObj.labelLines || barcodeRenderOptions.labelLines || null,
+            brand: itemObj.brand || barcodeRenderOptions.brand || '',
+            gramasi: itemObj.gramasi || barcodeRenderOptions.gramasi || '',
+            vault: itemObj.vault || barcodeRenderOptions.vault || '',
+            lemari: itemObj.lemari || barcodeRenderOptions.lemari || '',
+            laci: itemObj.laci || barcodeRenderOptions.laci || '',
+            kotak: itemObj.kotak || barcodeRenderOptions.kotak || '',
+            extraRows: itemObj.extraRows || barcodeRenderOptions.extraRows || [],
+            targetWidth: (isQR || itemFormat === 'NONE' || Boolean(barcodeRenderOptions.layoutPosition)) ? labelW : 0,
+            targetHeight: (isQR || itemFormat === 'NONE' || Boolean(barcodeRenderOptions.layoutPosition)) ? labelH : 0,
+            barWidth: barcodeRenderOptions.barWidth || 2,
+            height: barcodeRenderOptions.height || 60,
+            margin: barcodeRenderOptions.margin || 8,
+            fontSize: barcodeRenderOptions.fontSize || 14,
+            fontSizeTitle: barcodeRenderOptions.fontSizeTitle || 12,
+            fontSizeDetails: barcodeRenderOptions.fontSizeDetails || 10,
+            fontSizeId: barcodeRenderOptions.fontSizeId || 11,
+            showBorder: Boolean(showBorders),
+            backgroundColor: '#ffffff'
+          });
+        }
 
         if (tempCanvas.width === labelW && tempCanvas.height === labelH) {
           ctx.imageSmoothingEnabled = false;
@@ -588,8 +613,33 @@
       return;
     }
 
-    const sheetCanvas = renderSheetToCanvas(items, barcodeRenderOptions, sheetIndex, showBorders);
-    const defaultFilename = filename || `Lembar_Label_Halaman_${sheetIndex + 1}.png`;
+    const cols = barcodeRenderOptions.cols || 3;
+    const rows = barcodeRenderOptions.rows || 10;
+    const itemsPerPage = Math.max(1, cols * rows);
+    const totalSheets = Math.ceil(items.length / itemsPerPage);
+
+    if (sheetIndex === 'all') {
+      const tmplName = (barcodeRenderOptions.templateName || (cols === 3 && rows === 16 ? '48_Label_3x16' : 'Tom_Jerry_107')).replace(/[^a-zA-Z0-9_-]/g, '_');
+      for (let sIdx = 0; sIdx < totalSheets; sIdx++) {
+        const sheetCanvas = renderSheetToCanvas(items, barcodeRenderOptions, sIdx, showBorders);
+        const sheetFilename = `Lembar_${tmplName}_Halaman_${sIdx + 1}.png`;
+        await new Promise((resolve) => {
+          sheetCanvas.toBlob((blob) => {
+            if (blob) {
+              triggerDownload(blob, sheetFilename);
+            } else {
+              triggerDownload(sheetCanvas.toDataURL('image/png'), sheetFilename);
+            }
+            setTimeout(resolve, 250);
+          }, 'image/png');
+        });
+      }
+      return;
+    }
+
+    const sIdx = parseInt(sheetIndex, 10) || 0;
+    const sheetCanvas = renderSheetToCanvas(items, barcodeRenderOptions, sIdx, showBorders);
+    const defaultFilename = filename || `Lembar_Label_Halaman_${sIdx + 1}.png`;
 
     return new Promise((resolve) => {
       sheetCanvas.toBlob((blob) => {
